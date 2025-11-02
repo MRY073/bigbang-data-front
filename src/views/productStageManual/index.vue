@@ -1,56 +1,246 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { ElMessage, ElLoading } from "element-plus";
 import type { LoadingInstance } from "element-plus";
 
 defineOptions({ name: "ProductStageManual" });
 
-type Product = {
+type StageKey = "trial" | "potential" | "finished" | "abandon" | "other";
+
+type StageRange = [string, string] | null; // ["yyyy-MM-dd","yyyy-MM-dd"] or null
+
+type ProductRow = {
   id: string;
   name: string;
   image?: string | null;
-  stage?: "trial" | "rise" | "finished" | null;
-  originalStage?: "trial" | "rise" | "finished" | null;
-  visitorsMin?: number;
-  originalVisitorsMin?: number;
-  focus?: boolean;
-  originalFocus?: boolean;
-  modified?: boolean;
+  stages: Record<StageKey, StageRange>;
+  originalStages: Record<StageKey, StageRange>;
+  modifiedFlags: Record<StageKey, boolean>;
+  // computed at runtime
+  currentStage?: StageKey | null;
 };
 
-const products = ref<Product[]>([]);
+const products = ref<ProductRow[]>([]);
 const pageLoading = ref(false);
+const filterStage = ref<"all" | StageKey>("all");
 
-const API_LIST = "/api/products/stage/list";
-const API_UPDATE = "/api/products/stage/update";
+const API_LIST = "/api/products/stage/manual/list";
+const API_UPDATE = "/api/products/stage/manual/update";
 
 function showLoader(text = "加载中..."): LoadingInstance {
   return ElLoading.service({ lock: true, text, background: "rgba(0,0,0,0.2)" });
 }
 
-function initProducts(list: Partial<Product>[]) {
-  products.value = list.map(p => {
-    const stage = (p.stage ?? null) as Product["stage"];
-    const visitors = typeof p.visitorsMin === "number" ? p.visitorsMin : 0;
-    const focus = typeof p.focus === "boolean" ? p.focus : true; // 默认为关注
-    return {
-      id: String(p.id ?? ""),
-      name: String(p.name ?? ""),
-      image: p.image ?? null,
-      stage,
-      originalStage: stage ?? null,
-      visitorsMin: visitors,
-      originalVisitorsMin: visitors,
-      focus,
-      originalFocus: focus,
-      modified: false
-    } as Product;
+function parseDateStr(s?: string | null) {
+  if (!s) return null;
+  return new Date(s + "T00:00:00");
+}
+
+function formatRangeForCompare(r: StageRange) {
+  return r ? `${r[0]}_${r[1]}` : "null";
+}
+
+function computeCurrentStageForRow(row: ProductRow): StageKey | null {
+  const today = new Date();
+  // priority: abandon -> other -> finished -> potential -> trial
+  const order: StageKey[] = [
+    "abandon",
+    "other",
+    "finished",
+    "potential",
+    "trial"
+  ];
+  for (const key of order) {
+    const rng = row.stages[key];
+    if (rng && rng[0] && rng[1]) {
+      const start = parseDateStr(rng[0])!;
+      const end = parseDateStr(rng[1])!;
+      if (start <= today && today <= end) return key;
+    }
+  }
+  return null;
+}
+
+function initProducts(list: Partial<ProductRow>[]) {
+  products.value = list.map(item => {
+    const stagesDefault: Record<StageKey, StageRange> = {
+      trial: null,
+      potential: null,
+      finished: null,
+      abandon: null,
+      other: null
+    };
+    const srcStages = (item as any).stages ?? {};
+    const merged: Record<StageKey, StageRange> = { ...stagesDefault };
+    (Object.keys(merged) as StageKey[]).forEach(k => {
+      const v = srcStages[k];
+      merged[k] =
+        Array.isArray(v) && v.length === 2
+          ? [String(v[0]), String(v[1])]
+          : null;
+    });
+
+    const row: ProductRow = {
+      id: String((item as any).id ?? ""),
+      name: String((item as any).name ?? ""),
+      image: (item as any).image ?? null,
+      stages: merged,
+      originalStages: JSON.parse(JSON.stringify(merged)),
+      modifiedFlags: {
+        trial: false,
+        potential: false,
+        finished: false,
+        abandon: false,
+        other: false
+      },
+      currentStage: null
+    };
+    row.currentStage = computeCurrentStageForRow(row);
+    return row;
   });
 }
 
-/**
- * 复制到剪贴板（兼容回退）
- */
+/** 标记单个阶段的修改状态 */
+function markStageModified(row: ProductRow, key: StageKey) {
+  const orig = row.originalStages[key];
+  const cur = row.stages[key];
+  row.modifiedFlags[key] =
+    formatRangeForCompare(orig) !== formatRangeForCompare(cur);
+  // recompute current stage after any change
+  row.currentStage = computeCurrentStageForRow(row);
+}
+
+/** 拉取数据（仅手动触发） */
+async function fetchData() {
+  pageLoading.value = true;
+  const loader = showLoader("拉取数据中...");
+  try {
+    const res = await fetch(API_LIST);
+    if (!res.ok) throw new Error("fetch failed");
+    const data = await res.json();
+    initProducts(data || []);
+  } catch {
+    // mock 初始数据（便于直接看到页面效果）
+    initProducts([
+      {
+        id: "SKU1001",
+        name: "商品 A",
+        image: "https://via.placeholder.com/80?text=A",
+        stages: {
+          trial: ["2025-09-01", "2025-09-10"],
+          potential: ["2025-09-11", "2025-09-20"],
+          finished: ["2025-09-21", "2025-10-20"],
+          abandon: null,
+          other: null
+        }
+      },
+      {
+        id: "SKU1002",
+        name: "商品 B",
+        image: "https://via.placeholder.com/80?text=B",
+        stages: {
+          trial: null,
+          potential: null,
+          finished: null,
+          abandon: ["2025-08-01", "2025-12-31"],
+          other: null
+        }
+      },
+      {
+        id: "SKU1003",
+        name: "商品 C 非常长的名称示例",
+        image: "https://via.placeholder.com/80?text=C",
+        stages: {
+          trial: ["2025-10-01", "2025-10-10"],
+          potential: null,
+          finished: null,
+          abandon: null,
+          other: ["2025-10-11", "2025-10-20"]
+        }
+      },
+      {
+        id: "SKU1004",
+        name: "商品 D",
+        image: null,
+        stages: {
+          trial: null,
+          potential: ["2025-10-01", "2025-12-31"],
+          finished: null,
+          abandon: null,
+          other: null
+        }
+      }
+    ]);
+    ElMessage.info("使用本地示例数据（后端不可用）");
+  } finally {
+    loader.close();
+    pageLoading.value = false;
+  }
+}
+
+/** 提交改变（只提交被修改的阶段数据） */
+async function submitChanges() {
+  // 收集修改项
+  const payload = products.value
+    .map(row => {
+      const changedStages: Record<string, StageRange> = {};
+      (Object.keys(row.stages) as StageKey[]).forEach(k => {
+        if (row.modifiedFlags[k]) changedStages[k] = row.stages[k];
+      });
+      return {
+        id: row.id,
+        changes: changedStages
+      };
+    })
+    .filter(item => Object.keys(item.changes).length > 0);
+
+  if (!payload.length) {
+    ElMessage.info("没有需要提交的更改");
+    return;
+  }
+
+  pageLoading.value = true;
+  const loader = showLoader("提交中...");
+  try {
+    const res = await fetch(API_UPDATE, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error("提交失败");
+    // 假设成功：同步 originalStages 与清除 modifiedFlags
+    payload.forEach(p => {
+      const row = products.value.find(r => r.id === p.id);
+      if (!row) return;
+      Object.keys(p.changes).forEach((k: string) => {
+        const key = k as StageKey;
+        row.originalStages[key] = row.stages[key];
+        row.modifiedFlags[key] = false;
+      });
+    });
+    ElMessage.success("提交成功");
+  } catch {
+    ElMessage.error("提交失败，请重试");
+  } finally {
+    loader.close();
+    pageLoading.value = false;
+  }
+}
+
+/** 过滤后的产品列表 */
+const filteredProducts = computed(() => {
+  if (filterStage.value === "all") return products.value;
+  const key = filterStage.value as StageKey;
+  // 只保留那些在该阶段有时间段或当前阶段为该阶段
+  return products.value.filter(row => {
+    const rng = row.stages[key];
+    const hasRange = rng && rng[0] && rng[1];
+    const isCurrent = row.currentStage === key;
+    return hasRange || isCurrent;
+  });
+});
+
+/** 点击复制 id/name */
 async function copyToClipboard(text: string) {
   try {
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -58,8 +248,6 @@ async function copyToClipboard(text: string) {
     } else {
       const ta = document.createElement("textarea");
       ta.value = text;
-      ta.style.position = "fixed";
-      ta.style.opacity = "0";
       document.body.appendChild(ta);
       ta.select();
       document.execCommand("copy");
@@ -71,121 +259,31 @@ async function copyToClipboard(text: string) {
   }
 }
 
-/**
- * 手动拉取数据（按钮触发）
- */
-async function fetchData() {
-  pageLoading.value = true;
-  const loader = showLoader("拉取数据中...");
-  try {
-    const res = await fetch(API_LIST);
-    if (!res.ok) throw new Error("fetch failed");
-    const data = await res.json();
-    initProducts(data || []);
-  } catch {
-    // 使用示例数据（后端不可用时）
-    initProducts([
-      {
-        id: "SKU1001",
-        name: "示例商品 A",
-        image: "https://via.placeholder.com/80",
-        stage: null,
-        visitorsMin: 0,
-        focus: true
-      },
-      {
-        id: "SKU1002",
-        name: "示例商品 B",
-        image: "https://via.placeholder.com/80",
-        stage: "trial",
-        visitorsMin: 0,
-        focus: true
-      },
-      {
-        id: "SKU1003",
-        name: "示例商品 C",
-        image: null,
-        stage: "rise",
-        visitorsMin: 120,
-        focus: false
-      }
-    ]);
-    ElMessage.info("使用示例数据（后端不可用）");
-  } finally {
-    loader.close();
-    pageLoading.value = false;
-  }
-}
-
-/**
- * 任一可编辑字段变化时调用，标记该行是否被修改
- */
-function markRowModified(row: Product) {
-  const stageChanged = (row.stage ?? null) !== (row.originalStage ?? null);
-  const visitorsChanged =
-    (row.visitorsMin ?? 0) !== (row.originalVisitorsMin ?? 0);
-  const focusChanged = (row.focus ?? true) !== (row.originalFocus ?? true);
-  row.modified = stageChanged || visitorsChanged || focusChanged;
-}
-
-/**
- * 表格行 class，根据 focus 决定是否蒙版显示
- */
-function tableRowClass({ row }: { row: Product }) {
-  return row.focus === false ? "row-muted" : "";
-}
-
-/**
- * 提交已修改行
- */
-async function submitChanges() {
-  const changed = products.value.filter(p => p.modified);
-  if (!changed.length) {
-    ElMessage.info("没有需要提交的更改");
-    return;
-  }
-
-  pageLoading.value = true;
-  const loader = showLoader("提交中...");
-  try {
-    const body = changed.map(p => ({
-      id: p.id,
-      stage: p.stage ?? null,
-      visitorsMin: p.visitorsMin ?? 0,
-      focus: p.focus ?? true
-    }));
-
-    const res = await fetch(API_UPDATE, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
-    });
-
-    if (!res.ok) throw new Error("提交失败");
-
-    // 提交成功后同步原始值并清除标记
-    changed.forEach(p => {
-      p.originalStage = p.stage ?? null;
-      p.originalVisitorsMin = p.visitorsMin ?? 0;
-      p.originalFocus = p.focus ?? true;
-      p.modified = false;
-    });
-
-    ElMessage.success("提交成功");
-  } catch {
-    ElMessage.error("提交失败，请重试");
-  } finally {
-    loader.close();
-    pageLoading.value = false;
-  }
-}
+onMounted(() => {
+  // 页面进入不自动拉取，使用示例数据以便查看（也可按需注释）
+  fetchData();
+});
 </script>
 
 <template>
   <div class="product-stage-page">
     <el-card class="stage-card">
       <div class="card-header">
-        <h3 class="title">商品阶段手动设置</h3>
+        <div class="left">
+          <el-select
+            v-model="filterStage"
+            placeholder="筛选阶段"
+            style="width: 220px"
+          >
+            <el-option label="全部" value="all" />
+            <el-option label="测款阶段" value="trial" />
+            <el-option label="潜力阶段" value="potential" />
+            <el-option label="成品阶段" value="finished" />
+            <el-option label="放弃阶段" value="abandon" />
+            <el-option label="其他阶段" value="other" />
+          </el-select>
+        </div>
+
         <div class="actions">
           <el-button
             type="primary"
@@ -205,11 +303,18 @@ async function submitChanges() {
       </div>
 
       <el-table
-        :data="products"
+        :data="filteredProducts"
         stripe
-        style="width: 100%; margin-top: 12px"
+        style="width: 100%"
         :row-key="row => row.id"
-        :row-class-name="tableRowClass"
+        :row-class-name="
+          ({ row }) =>
+            row.currentStage === 'abandon'
+              ? 'row-abandon'
+              : row.currentStage === 'other'
+                ? 'row-other'
+                : ''
+        "
       >
         <el-table-column
           prop="id"
@@ -217,31 +322,37 @@ async function submitChanges() {
           width="160"
           align="center"
           header-align="center"
+          fixed="left"
         >
           <template #default="{ row }">
-            <span
-              class="copy-text"
-              title="点击复制产品ID"
-              @click.stop="copyToClipboard(row.id)"
-              >{{ row.id }}</span
-            >
+            <div class="cell-center">
+              <span
+                class="plain-text"
+                title="点击复制"
+                @click.stop="copyToClipboard(row.id)"
+                >{{ row.id }}</span
+              >
+            </div>
           </template>
         </el-table-column>
 
         <el-table-column
           prop="name"
           label="产品名称"
-          min-width="220"
+          width="300"
           align="center"
           header-align="center"
+          fixed="left"
         >
           <template #default="{ row }">
-            <span
-              class="copy-text"
-              title="点击复制产品名称"
-              @click.stop="copyToClipboard(row.name)"
-              >{{ row.name }}</span
-            >
+            <div class="cell-center">
+              <span
+                class="plain-text"
+                title="点击复制"
+                @click.stop="copyToClipboard(row.name)"
+                >{{ row.name }}</span
+              >
+            </div>
           </template>
         </el-table-column>
 
@@ -251,86 +362,170 @@ async function submitChanges() {
           width="120"
           align="center"
           header-align="center"
+          fixed="left"
         >
           <template #default="{ row }">
-            <img v-if="row.image" :src="row.image" alt="主图" class="thumb" />
-            <div v-else class="no-img">无图</div>
-          </template>
-        </el-table-column>
-
-        <el-table-column
-          prop="stage"
-          label="选择商品生命阶段"
-          width="300"
-          align="center"
-          header-align="center"
-        >
-          <template #default="{ row }">
-            <div class="editable-cell">
-              <el-select
-                v-model="row.stage"
-                placeholder="选择阶段"
-                clearable
-                style="width: 220px"
-                @change="() => markRowModified(row)"
-              >
-                <el-option label="测款阶段" value="trial" />
-                <el-option label="上升阶段" value="rise" />
-                <el-option label="成品阶段" value="finished" />
-              </el-select>
-
-              <div class="modified-wrap">
-                <span
-                  v-if="(row.stage ?? null) !== (row.originalStage ?? null)"
-                  class="modified-mark"
-                  >已修改</span
-                >
-              </div>
+            <div class="cell-center">
+              <img v-if="row.image" :src="row.image" alt="主图" class="thumb" />
+              <div v-else class="no-img">无图</div>
             </div>
           </template>
         </el-table-column>
 
+        <!-- 各阶段列，使用日期区间选择器 -->
         <el-table-column
-          prop="visitorsMin"
-          label="成品阶段最低日访客数"
+          label="测款阶段"
           width="240"
           align="center"
           header-align="center"
         >
           <template #default="{ row }">
             <div class="editable-cell">
-              <el-input-number
-                v-model="row.visitorsMin"
-                :min="0"
-                :controls="true"
-                @change="() => markRowModified(row)"
+              <el-date-picker
+                v-model="row.stages.trial"
+                type="daterange"
+                range-separator="至"
+                start-placeholder="开始日期"
+                end-placeholder="结束日期"
+                value-format="yyyy-MM-dd"
+                unlink-panels
+                clearable
+                style="width: 200px"
+                @change="() => markStageModified(row, 'trial')"
               />
-              <div class="modified-wrap">
-                <span
-                  v-if="
-                    (row.visitorsMin ?? 0) !== (row.originalVisitorsMin ?? 0)
-                  "
-                  class="modified-mark"
-                  >已修改</span
-                >
+              <div v-if="row.modifiedFlags.trial" class="modified-note">
+                已修改
               </div>
             </div>
           </template>
         </el-table-column>
 
-        <!-- 右侧 focus 开关 -->
         <el-table-column
-          prop="focus"
-          label="关注"
-          width="120"
+          label="潜力阶段"
+          width="240"
           align="center"
           header-align="center"
         >
           <template #default="{ row }">
-            <el-switch
-              v-model="row.focus"
-              @change="() => markRowModified(row)"
-            />
+            <div class="editable-cell">
+              <el-date-picker
+                v-model="row.stages.potential"
+                type="daterange"
+                range-separator="至"
+                start-placeholder="开始日期"
+                end-placeholder="结束日期"
+                value-format="yyyy-MM-dd"
+                clearable
+                style="width: 200px"
+                @change="() => markStageModified(row, 'potential')"
+              />
+              <div v-if="row.modifiedFlags.potential" class="modified-note">
+                已修改
+              </div>
+            </div>
+          </template>
+        </el-table-column>
+
+        <el-table-column
+          label="成品阶段"
+          width="240"
+          align="center"
+          header-align="center"
+        >
+          <template #default="{ row }">
+            <div class="editable-cell">
+              <el-date-picker
+                v-model="row.stages.finished"
+                type="daterange"
+                range-separator="至"
+                start-placeholder="开始日期"
+                end-placeholder="结束日期"
+                value-format="yyyy-MM-dd"
+                clearable
+                style="width: 200px"
+                @change="() => markStageModified(row, 'finished')"
+              />
+              <div v-if="row.modifiedFlags.finished" class="modified-note">
+                已修改
+              </div>
+            </div>
+          </template>
+        </el-table-column>
+
+        <el-table-column
+          label="放弃阶段"
+          width="240"
+          align="center"
+          header-align="center"
+        >
+          <template #default="{ row }">
+            <div class="editable-cell">
+              <el-date-picker
+                v-model="row.stages.abandon"
+                type="daterange"
+                range-separator="至"
+                start-placeholder="开始日期"
+                end-placeholder="结束日期"
+                value-format="yyyy-MM-dd"
+                clearable
+                style="width: 200px"
+                @change="() => markStageModified(row, 'abandon')"
+              />
+              <div v-if="row.modifiedFlags.abandon" class="modified-note">
+                已修改
+              </div>
+            </div>
+          </template>
+        </el-table-column>
+
+        <el-table-column
+          label="其他阶段"
+          width="240"
+          align="center"
+          header-align="center"
+        >
+          <template #default="{ row }">
+            <div class="editable-cell">
+              <el-date-picker
+                v-model="row.stages.other"
+                type="daterange"
+                range-separator="至"
+                start-placeholder="开始日期"
+                end-placeholder="结束日期"
+                value-format="yyyy-MM-dd"
+                clearable
+                style="width: 200px"
+                @change="() => markStageModified(row, 'other')"
+              />
+              <div v-if="row.modifiedFlags.other" class="modified-note">
+                已修改
+              </div>
+            </div>
+          </template>
+        </el-table-column>
+
+        <el-table-column
+          prop="currentStage"
+          label="当前阶段"
+          width="140"
+          align="center"
+          header-align="center"
+        >
+          <template #default="{ row }">
+            <div class="cell-center">
+              <span v-if="row.currentStage" class="current-badge">{{
+                row.currentStage === "trial"
+                  ? "测款"
+                  : row.currentStage === "potential"
+                    ? "潜力"
+                    : row.currentStage === "finished"
+                      ? "成品"
+                      : row.currentStage === "abandon"
+                        ? "放弃"
+                        : "其他"
+              }}</span>
+              <span v-else class="dash">-</span>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -340,142 +535,148 @@ async function submitChanges() {
 
 <style scoped>
 .product-stage-page {
+  padding: 12px;
   min-height: calc(100vh - 80px);
-  padding: 12px 0;
   background: #f7f9fc;
+  box-sizing: border-box;
 }
 
-/* 使卡片基本占满可视宽度并居中，左右留 20px 间距 */
+/* 卡片尽量占满父元素 */
 .stage-card {
-  width: calc(100% - 40px);
-  max-width: none;
-  margin: 0 20px;
+  width: 100%;
+  margin: 0;
   padding: 16px;
-  border-radius: 10px;
-  box-shadow: 0 8px 30px rgb(32 45 61 / 6%);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(32, 45, 61, 0.06);
 }
 
-/* 表头区域居中 */
+/* 顶部区域 */
 .card-header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
+  align-items: center;
   gap: 12px;
+  margin-bottom: 12px;
 }
 
-/* 表格占满卡片可用宽度 */
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* 表格占满父元素宽度 */
 .stage-card :deep(.el-table) {
   width: 100%;
 }
 
-/* 表格单元格内容垂直水平居中 */
+/* 表格单元格内容水平垂直居中 */
 .stage-card :deep(.el-table .cell) {
   display: flex;
   align-items: center;
   justify-content: center;
   text-align: center;
-  gap: 8px;
 }
 
-/* 允许表格在小屏水平滚动 */
-.stage-card :deep(.el-table__body-wrapper) {
-  overflow-x: auto;
-}
-
-/* 主图固定大小 */
+/* 主图固定像素大小 */
 .thumb {
   width: 80px;
   height: 80px;
   object-fit: cover;
   border-radius: 6px;
   display: block;
-  margin: 0 auto;
 }
 
+/* 无图占位 */
 .no-img {
+  width: 80px;
+  height: 80px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 80px;
-  height: 80px;
-  font-size: 12px;
-  color: #9aa8bf;
   background: #f2f6fb;
+  color: #9aa8bf;
   border-radius: 6px;
 }
 
-/* 可编辑单元格布局：保留下方空间用于“已修改”标记 */
+/* 单元格内竖直布局，预留底部空间显示已修改 */
 .editable-cell {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 10px;
-  position: relative;
-  padding-bottom: 18px; /* 预留空间，不影响行高 */
+  justify-content: center;
+  gap: 6px;
 }
 
-/* 为“已修改”单独容器，置于下方 */
-.modified-wrap {
-  position: absolute;
-  left: 50px;
-  bottom: -5px;
-  width: 100%;
-  display: flex;
-  justify-content: flex-start;
-}
-
-/* 变更标记，红色突出显示（不改变布局） */
-.modified-mark {
+/* 已修改提示：红色，小字，固定在选择器下方 */
+.modified-note {
   color: #ff4d4f;
   font-size: 12px;
   font-weight: 600;
+  line-height: 1;
 }
 
-/* 次要文本颜色 */
-.muted {
-  color: #606266;
+/* 当前阶段样式 */
+.current-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  background: #eef6ff;
+  color: #409eff;
+  font-weight: 600;
+  font-size: 13px;
 }
 
-/* 复制文本样式：正常文本，不像超链接 */
-.copy-text {
+/* 空时显示短横线 */
+.dash {
+  color: #909399;
+}
+
+/* 放弃阶段整行深灰，字体浅白 */
+:deep(.el-table__row.row-abandon) > td {
+  background-color: #2f2f33 !important;
+  color: #f5f5f7 !important;
+}
+:deep(.el-table__row.row-abandon) {
+  --el-color-text: #f5f5f7;
+}
+
+/* 其他阶段整行浅灰，字体白色 */
+:deep(.el-table__row.row-other) > td {
+  background-color: #6b6f73 !important;
+  color: #ffffff !important;
+}
+:deep(.el-table__row.row-other) {
+  --el-color-text: #ffffff;
+}
+
+/* 复制文本样式为正常文本 */
+.plain-text {
   cursor: pointer;
+  color: inherit;
   user-select: text;
-  color: inherit;
-  text-decoration: none;
-}
-.copy-text:hover {
-  color: inherit;
-  text-decoration: underline; /* 可选，保留轻微 hover 提示 */
 }
 
-/* 不关注时整行浅灰背景：使用深度选择器确保作用于 el-table 渲染的 tr/td */
-:deep(.el-table__row.row-muted) > td {
-  background-color: #606266 !important;
-  color: #9aa8bf;
+/* 响应式处理：小屏滚动 */
+.stage-card :deep(.el-table__body-wrapper) {
+  overflow-x: auto;
 }
 
-/* 保持行本身正常可交互，不使用透明度或灰度过滤 */
-:deep(.el-table__row.row-muted) {
-  opacity: 1 !important;
-  filter: none !important;
+/* 确保固定列在视觉上正常覆盖（Element Plus 固定列样式增强） */
+:deep(.el-table__fixed) {
+  z-index: 3;
+}
+:deep(.el-table__fixed-right) {
+  z-index: 2;
+}
+:deep(.el-table__fixed .cell),
+:deep(.el-table__fixed-right .cell) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-/* 保证 switch、按钮等控件在浅灰行上仍可交互 */
-:deep(.el-table__row.row-muted) .el-switch,
-:deep(.el-table__row.row-muted) .el-button,
-:deep(.el-table__row.row-muted) input,
-:deep(.el-table__row.row-muted) select {
-  pointer-events: auto;
-  opacity: 1;
-}
-
-/* 响应式：窄屏时减少左右间距 */
-@media (max-width: 768px) {
-  .stage-card {
-    margin: 0 8px;
-    padding: 12px;
-  }
-  .stage-card :deep(.el-table .cell) {
-    gap: 6px;
-  }
+/* 当有水平滚动时，固定列右侧显示分隔阴影（可选美化） */
+:deep(.el-table__fixed .el-table__fixed-right-shadow),
+:deep(.el-table__fixed-right .el-table__fixed-shadow) {
+  box-shadow: none;
 }
 </style>

@@ -4,7 +4,7 @@ const home = 0, // 平台规定只有 home 路由的 rank 才能为 0 ，所以�
   vueflow = 29,
   dataUpload = 1,
   productStageManual = 2,
-  ganttastic = 3,
+  adAnalysis = 3,
   components = 4,
   able = 5,
   table = 6,
@@ -29,7 +29,8 @@ const home = 0, // 平台规定只有 home 路由的 rank 才能为 0 ，所以�
   mind = 25,
   guide = 26,
   menuoverflow = 27,
-  chatai = 28;
+  chatai = 28,
+  ganttastic = 29;
 
 export {
   home,
@@ -61,5 +62,6 @@ export {
   mind,
   guide,
   menuoverflow,
-  productStageManual
+  productStageManual,
+  adAnalysis
 };
