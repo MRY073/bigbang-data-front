@@ -70,6 +70,7 @@ type ResultTable = {
 
 /** 登录 */
 export const getLogin = (data?: object) => {
+  // 登录接口
   return http.request<UserResult>("post", "/login", { data });
 };
 
