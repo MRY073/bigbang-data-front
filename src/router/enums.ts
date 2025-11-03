@@ -6,7 +6,7 @@ const home = 0, // 平台规定只有 home 路由的 rank 才能为 0 ，所以�
   productStageManual = 2,
   adAnalysis = 3,
   finishedLinkMonitor = 4,
-  able = 5,
+  trialLinkMonitor = 5,
   table = 6,
   form = 7,
   list = 8,
@@ -31,7 +31,8 @@ const home = 0, // 平台规定只有 home 路由的 rank 才能为 0 ，所以�
   menuoverflow = 27,
   chatai = 28,
   ganttastic = 29,
-  components = 30;
+  components = 30,
+  able = 31;
 
 export {
   home,
@@ -65,5 +66,6 @@ export {
   menuoverflow,
   productStageManual,
   adAnalysis,
-  finishedLinkMonitor
+  finishedLinkMonitor,
+  trialLinkMonitor
 };
