@@ -4,7 +4,7 @@ export default {
   path: "/productStageManual",
   redirect: "/productStageManual/index",
   meta: {
-    icon: "ri-calendar-event-line",
+    icon: "ep/edit",
     title: "手动设置商品阶段",
     rank: productStageManual
   },

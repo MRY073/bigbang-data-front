@@ -4,7 +4,7 @@ export default {
   path: "/adAnalysis",
   redirect: "/adAnalysis/index",
   meta: {
-    icon: "ri-pie-chart-2-line",
+    icon: "ep/data-analysis",
     title: "广告占比分析",
     rank: adAnalysis
   },

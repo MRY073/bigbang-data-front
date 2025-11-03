@@ -4,7 +4,7 @@ export default {
   path: "/finishedLinkMonitor",
   redirect: "/finishedLinkMonitor/index",
   meta: {
-    icon: "ri-monitor-line",
+    icon: "ep/monitor",
     title: "成品链接监控",
     rank: finishedLinkMonitor
   },
@@ -14,8 +14,7 @@ export default {
       name: "FinishedLinkMonitor",
       component: () => import("@/views/finishedLinkMonitor/index.vue"),
       meta: {
-        title: "成品链接监控",
-        keepAlive: false
+        title: "成品链接监控"
       }
     }
   ]
