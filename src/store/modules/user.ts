@@ -80,7 +80,6 @@ export const useUserStore = defineStore("pure-user", {
       return new Promise<UserResult>((resolve, reject) => {
         getLogin(data)
           .then(data => {
-            if (data?.success) setToken(data.data);
             resolve(data);
           })
           .catch(error => {
@@ -93,8 +92,6 @@ export const useUserStore = defineStore("pure-user", {
       this.username = "";
       this.roles = [];
       this.permissions = [];
-      removeToken();
-      useMultiTagsStoreHook().handleTags("equal", [...routerArrays]);
       resetRouter();
       router.push("/login");
     },

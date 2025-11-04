@@ -17,13 +17,14 @@ import LoginRegist from "./components/LoginRegist.vue";
 import LoginUpdate from "./components/LoginUpdate.vue";
 import LoginQrCode from "./components/LoginQrCode.vue";
 import { useUserStoreHook } from "@/store/modules/user";
-import { initRouter, getTopMenu } from "@/router/utils";
+import { initRouter, getTopMenu, addPathMatch } from "@/router/utils";
 import { bg, avatar, illustration } from "./utils/static";
 // import { ReImageVerify } from "@/components/ReImageVerify";
 import { ref, toRaw, reactive, watch, computed } from "vue";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import { useTranslationLang } from "@/layout/hooks/useTranslationLang";
 import { useDataThemeChange } from "@/layout/hooks/useDataThemeChange";
+import { usePermissionStoreHook } from "@/store/modules/permission";
 
 import dayIcon from "@/assets/svg/day.svg?component";
 import darkIcon from "@/assets/svg/dark.svg?component";
@@ -58,12 +59,13 @@ const { title, getDropdownItemStyle, getDropdownItemClass } = useNav();
 const { locale, translationCh, translationEn } = useTranslationLang();
 
 const ruleForm = reactive({
-  username: "MRY",
-  password: "nocorrect123"
+  username: "YANGYIWEI",
+  password: "Q8@xM2f#T9"
 });
 
 const onLogin = async (formEl: FormInstance | undefined) => {
   // 校验密码强度
+  debugger;
   if (!formEl) return;
   await formEl.validate(valid => {
     if (valid) {
@@ -76,17 +78,14 @@ const onLogin = async (formEl: FormInstance | undefined) => {
         .then(res => {
           if (res.success) {
             // 获取后端路由
-            return initRouter().then(() => {
-              disabled.value = true;
-              router
-                .push(getTopMenu(true).path)
-                .then(() => {
-                  message(t("login.pureLoginSuccess"), { type: "success" });
-                })
-                .finally(() => (disabled.value = false));
-            });
+            // 全部采取静态路由模式
+            usePermissionStoreHook().handleWholeMenus([]);
+            addPathMatch();
+            router.push(getTopMenu(true).path);
+            message(t("login.pureLoginSuccess"), { type: "success" });
+            loading.value = false;
           } else {
-            message(t("login.pureLoginFail"), { type: "error" });
+            message(res.message, { type: "error" });
           }
         })
         .finally(() => (loading.value = false));

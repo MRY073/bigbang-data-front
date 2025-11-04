@@ -1,6 +1,7 @@
 import { http } from "@/utils/http";
 
 export type UserResult = {
+  message: string | VNode<RendererNode, RendererElement, { [key: string]: any; }> | (() => VNode<RendererNode, RendererElement, { [key: string]: any; }>);
   success: boolean;
   data: {
     /** 头像 */
@@ -71,7 +72,7 @@ type ResultTable = {
 /** 登录 */
 export const getLogin = (data?: object) => {
   // 登录接口
-  return http.request<UserResult>("post", "/login", { data });
+  return http.request<UserResult>("post", "/api/auth/login", { data });
 };
 
 /** 刷新`token` */

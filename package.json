@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "NODE_OPTIONS=--max-old-space-size=4096 vite",
+    "dev": "cross-env NODE_OPTIONS=--max-old-space-size=4096 vite",
     "serve": "pnpm dev",
     "build": "rimraf dist && NODE_OPTIONS=--max-old-space-size=8192 vite build && generate-version-file",
     "build:staging": "rimraf dist && vite build --mode staging",
@@ -136,6 +136,7 @@
     "@vitejs/plugin-vue-jsx": "^5.1.1",
     "boxen": "^8.0.1",
     "code-inspector-plugin": "^1.2.10",
+    "cross-env": "^10.1.0",
     "cssnano": "^7.1.1",
     "dagre": "^0.8.5",
     "eslint": "^9.37.0",
