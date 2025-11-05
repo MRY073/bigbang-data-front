@@ -3,6 +3,7 @@ import { ref } from "vue";
 import type { UploadProps, UploadInstance, FormInstance } from "element-plus";
 import { ElMessage } from "element-plus";
 import { debounce } from "@pureadmin/utils";
+import { uploadData } from "@/api/uploadData";
 
 defineOptions({
   name: "DataUpload"
@@ -69,23 +70,12 @@ const beforeUpload: UploadProps["beforeUpload"] = file => {
 };
 
 // 模拟发送上传请求（替换为实际 API 调用）
-const sendRequest = (files: File[], type: string) =>
-  new Promise<void>(resolve => {
-    // 模拟网络延迟
-    setTimeout(() => {
-      resolve();
-    }, 1500);
-  });
+const sendRequest = (fd: FormData) => uploadData(fd); // 返回一个 Promise
 
 // 处理上传请求：启动请求后立即清空页面，接口完成后再弹出 toast
 const handleUpload = async (formEl: FormInstance | undefined) => {
+  debugger;
   if (!formEl) return;
-
-  try {
-    await formEl.validate();
-  } catch {
-    return;
-  }
 
   if (!fileList.value || !fileList.value.length) {
     ElMessage.warning("请先选择要上传的文件");
@@ -105,11 +95,11 @@ const handleUpload = async (formEl: FormInstance | undefined) => {
   // 构造 FormData（示例）
   const fd = new FormData();
   filesToSend.forEach((f, i) => fd.append(`files`, f));
-  fd.append("type", formData.value.type);
+  fd.append("type", formData.value.type); // 添加上传文件的类型（广告、商业分析、映射表）
   fd.append("shop", formData.value.shop); // 添加店铺信息
 
   // 启动请求
-  const req = sendRequest(filesToSend, formData.value.type);
+  const req = sendRequest(fd);
 
   // 一旦请求成功发送（即已启动），立即清空页面，允许用户继续操作
   resetForm();
@@ -191,7 +181,7 @@ const resetForm = () => {
           <el-col :span="24" lg="12">
             <el-form-item label="当前已选">
               <div class="file-summary">
-                <span class="count">{{ fileList.length }} / 10</span>
+                <span class="count">{{ fileList.length }} / 100</span>
                 <el-button
                   v-if="fileList.length"
                   type="text"
@@ -212,9 +202,7 @@ const resetForm = () => {
             class="upload-demo"
             :auto-upload="false"
             :show-file-list="true"
-            :on-exceed="() => ElMessage.warning('最多只能上传10个文件')"
             :before-upload="beforeUpload"
-            :limit="10"
             multiple
             accept=".csv,.xls,.xlsx"
             action="#"

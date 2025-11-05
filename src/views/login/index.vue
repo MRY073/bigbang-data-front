@@ -65,7 +65,6 @@ const ruleForm = reactive({
 
 const onLogin = async (formEl: FormInstance | undefined) => {
   // 校验密码强度
-  debugger;
   if (!formEl) return;
   await formEl.validate(valid => {
     if (valid) {

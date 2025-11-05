@@ -1,5 +1,4 @@
 import "@/utils/sso";
-import Cookies from "js-cookie";
 import { getConfig } from "@/config";
 import NProgress from "@/utils/progress";
 import { transformI18n } from "@/plugins/i18n";
@@ -19,7 +18,6 @@ import {
   type RouteComponent,
   createRouter
 } from "vue-router";
-import { debug } from "console";
 
 /** 自动导入全部静态路由，无需再手动引入！匹配 src/router/modules 目录（任何嵌套级别）中具有 .ts 扩展名的所有文件，除了 remaining.ts 文件
  * 如何匹配所有文件请看：https://github.com/mrmlnc/fast-glob#basic-syntax
@@ -116,7 +114,6 @@ router.beforeEach((to, from, next) => {
       ? `${transformI18n(to.meta.title)} | ${appTitle}`
       : transformI18n(to.meta.title);
   }
-  debugger;
 
   const whiteList = ["/login"];
 
