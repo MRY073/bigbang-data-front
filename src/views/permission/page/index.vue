@@ -1,9 +1,6 @@
 <script setup lang="ts">
-import { initRouter } from "@/router/utils";
-import { storageLocal } from "@pureadmin/utils";
 import { type CSSProperties, ref, computed } from "vue";
 import { useUserStoreHook } from "@/store/modules/user";
-import { usePermissionStoreHook } from "@/store/modules/permission";
 
 defineOptions({
   name: "PermissionPage"
@@ -30,13 +27,14 @@ const options = [
 ];
 
 function onChange() {
+  // 注意：当前项目使用静态路由，不再支持动态路由切换
+  // 如需切换角色，请重新登录
   useUserStoreHook()
     .loginByUsername({ username: username.value, password: "admin123" })
     .then(res => {
       if (res.success) {
-        storageLocal().removeItem("async-routes");
-        usePermissionStoreHook().clearAllCachePage();
-        initRouter();
+        // 静态路由模式，无需重新初始化路由
+        window.location.reload();
       }
     });
 }
@@ -45,7 +43,7 @@ function onChange() {
 <template>
   <div>
     <p class="mb-2!">
-      模拟后台根据不同角色返回对应路由，观察左侧菜单变化（管理员角色可查看系统管理菜单、普通角色不可查看系统管理菜单）
+      当前项目使用静态路由模式，所有路由在代码中定义。如需切换角色，请重新登录。
     </p>
     <el-card shadow="never" :style="elStyle">
       <template #header>

@@ -180,6 +180,7 @@ const smoothScroll = (offset: number): void => {
   requestAnimationFrame(scrollStep);
 };
 
+// 根据路由路径添加标签页（静态路由）
 function dynamicRouteTag(value: string): void {
   const hasValue = multiTags.value.some(item => {
     return item.path === value;

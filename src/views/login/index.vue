@@ -17,7 +17,7 @@ import LoginRegist from "./components/LoginRegist.vue";
 import LoginUpdate from "./components/LoginUpdate.vue";
 import LoginQrCode from "./components/LoginQrCode.vue";
 import { useUserStoreHook } from "@/store/modules/user";
-import { initRouter, getTopMenu, addPathMatch } from "@/router/utils";
+import { getTopMenu, addPathMatch } from "@/router/utils";
 import { bg, avatar, illustration } from "./utils/static";
 // import { ReImageVerify } from "@/components/ReImageVerify";
 import { ref, toRaw, reactive, watch, computed } from "vue";
@@ -76,7 +76,6 @@ const onLogin = async (formEl: FormInstance | undefined) => {
         })
         .then(res => {
           if (res.success) {
-            // 获取后端路由
             // 全部采取静态路由模式
             usePermissionStoreHook().handleWholeMenus([]);
             addPathMatch();

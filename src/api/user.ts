@@ -1,7 +1,7 @@
 import { http } from "@/utils/http";
 
 export type UserResult = {
-  message: string | VNode<RendererNode, RendererElement, { [key: string]: any; }> | (() => VNode<RendererNode, RendererElement, { [key: string]: any; }>);
+  message: string;
   success: boolean;
   data: {
     /** 头像 */
@@ -10,10 +10,6 @@ export type UserResult = {
     username: string;
     /** 昵称 */
     nickname: string;
-    /** 当前登录用户的角色 */
-    roles: Array<string>;
-    /** 按钮级别权限 */
-    permissions: Array<string>;
     /** `token` */
     accessToken: string;
     /** 用于调用刷新`accessToken`的接口时所需的`token` */

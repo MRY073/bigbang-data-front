@@ -1,14 +1,26 @@
 import "@/utils/sso";
+// import Cookies from "js-cookie";
 import { getConfig } from "@/config";
 import NProgress from "@/utils/progress";
 import { transformI18n } from "@/plugins/i18n";
 import { buildHierarchyTree } from "@/utils/tree";
 import remainingRouter from "./modules/remaining";
+import { useMultiTagsStoreHook } from "@/store/modules/multiTags";
 import { usePermissionStoreHook } from "@/store/modules/permission";
-import { cloneDeep } from "@pureadmin/utils";
+import {
+  isUrl,
+  openLink,
+  cloneDeep,
+  isAllEmpty
+  // storageLocal
+} from "@pureadmin/utils";
 import {
   ascending,
+  getTopMenu,
+  // isOneOfArray,
   getHistoryMode,
+  findRouteByPath,
+  handleAliveRoute,
   formatTwoStageRoutes,
   formatFlatteningRoutes
 } from "./utils";
@@ -18,6 +30,13 @@ import {
   type RouteComponent,
   createRouter
 } from "vue-router";
+// import {
+//   type DataInfo,
+//   userKey,
+//   removeToken,
+//   multipleTabsKey
+// } from "@/utils/auth";
+import { addPathMatch } from "./utils";
 
 /** 自动导入全部静态路由，无需再手动引入！匹配 src/router/modules 目录（任何嵌套级别）中具有 .ts 扩展名的所有文件，除了 remaining.ts 文件
  * 如何匹配所有文件请看：https://github.com/mrmlnc/fast-glob#basic-syntax
@@ -97,35 +116,131 @@ export function resetRouter() {
 }
 
 /** 路由白名单 */
-// const whiteList = ["/login"];
+const whiteList = ["/login"];
 
 // const { VITE_HIDE_HOME } = import.meta.env;
 
-router.beforeEach((to, from, next) => {
-  // 页面加载进度条
-  if (!NProgress.isStarted()) {
+router.beforeEach(async (to: ToRouteType, _from, next) => {
+  // 1. 页面加载状态管理
+  to.meta.loaded = loadedPaths.has(to.path);
+  if (!to.meta.loaded) {
     NProgress.start();
   }
 
-  // 设置标题
-  if (to.meta?.title) {
-    const appTitle = getConfig().Title || "";
-    document.title = appTitle
-      ? `${transformI18n(to.meta.title)} | ${appTitle}`
-      : transformI18n(to.meta.title);
+  // 2. Keep-Alive 缓存处理
+  if (to.meta?.keepAlive) {
+    handleAliveRoute(to, "add");
+    // 页面整体刷新和点击标签页刷新
+    if (_from.name === undefined || _from.name === "Redirect") {
+      handleAliveRoute(to);
+    }
   }
 
-  const whiteList = ["/login"];
+  // 3. 页面标题设置
+  const externalLink = isUrl(to?.name as string);
+  if (!externalLink) {
+    to.matched.some(item => {
+      if (!item.meta.title) return "";
+      const Title = getConfig().Title;
+      if (Title)
+        document.title = `${transformI18n(item.meta.title)} | ${Title}`;
+      else document.title = transformI18n(item.meta.title);
+    });
+  }
 
-  // 如果未登录（无 Cookie）→ 直接跳转登录
-  // const token = Cookies.get("auth_token");
+  // 4. 外部链接处理
+  if (externalLink) {
+    openLink(to?.name as string);
+    NProgress.done();
+    return;
+  }
+
+  // 5. 白名单路由直接放行
   if (whiteList.includes(to.path)) {
     next();
-  } else {
-    next(); // 先让他去请求，失败由 axios 接管
+    return;
   }
 
-  NProgress.done();
+  // 6. 后台权限校验（伪代码）
+  // TODO: 待实现后台权限校验接口
+  // 接口说明：
+  // - 请求方式：GET/POST（根据实际接口定义）
+  // - 请求路径：/api/auth/check 或类似路径（根据实际接口定义）
+  // - 请求参数：{ path: to.fullPath } 或路由相关信息
+  // - 请求会自动携带 cookie，无需手动添加
+  // - 返回结果：{ success: boolean, hasPermission: boolean } 或类似结构
+  //
+  // 伪代码示例：
+  try {
+    // const response = await http.get('/api/auth/check', {
+    //   params: { path: to.fullPath }
+    // });
+    //
+    // if (!response.success || !response.hasPermission) {
+    //   // 无权限或未登录，跳转到登录页
+    //   next({ path: "/login" });
+    //   return;
+    // }
+
+    // 临时伪代码：暂时允许所有路由通过，等待接口实现
+    const hasPermission = true; // TODO: 替换为实际接口调用结果
+
+    if (!hasPermission) {
+      next({ path: "/login" });
+      return;
+    }
+  } catch (error) {
+    // 接口调用失败，跳转到登录页
+    // TODO: 根据实际错误类型处理（401未登录、403无权限等）
+    console.error(error);
+    next({ path: "/login" });
+    return;
+  }
+
+  // 7. 正常导航或页面刷新处理
+  if (_from?.name) {
+    // 正常导航（有来源路由）
+    next();
+  } else {
+    // 页面刷新处理
+    if (
+      usePermissionStoreHook().wholeMenus.length === 0 &&
+      to.path !== "/login"
+    ) {
+      // 处理静态路由
+      usePermissionStoreHook().handleWholeMenus([]);
+      addPathMatch();
+
+      // 处理标签页
+      if (!useMultiTagsStoreHook().getMultiTagsCache) {
+        const { path } = to;
+        const route = findRouteByPath(path, router.options.routes[0].children);
+        getTopMenu(true);
+        // query、params模式路由传参数的标签页不在此处处理
+        if (route && route.meta?.title) {
+          if (isAllEmpty(route.parentId) && route.meta?.backstage) {
+            // 此处为顶级路由（目录）
+            const { path, name, meta } = route.children[0];
+            useMultiTagsStoreHook().handleTags("push", {
+              path,
+              name,
+              meta
+            });
+          } else {
+            const { path, name, meta } = route;
+            useMultiTagsStoreHook().handleTags("push", {
+              path,
+              name,
+              meta
+            });
+          }
+        }
+      }
+      // 确保路由正常跳转
+      if (isAllEmpty(to.name)) router.push(to.fullPath);
+    }
+    next();
+  }
 });
 
 router.afterEach(to => {
