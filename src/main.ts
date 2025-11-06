@@ -13,6 +13,42 @@ import { injectResponsiveStorage } from "@/utils/responsive";
 import Table from "@pureadmin/table";
 import PureDescriptions from "@pureadmin/descriptions";
 
+// 全局错误处理：忽略浏览器扩展引起的错误
+window.addEventListener("error", (event) => {
+  // 忽略浏览器扩展相关的错误
+  if (
+    event.filename?.includes("browser-polyfill") ||
+    event.filename?.includes("extension://") ||
+    event.filename?.includes("chrome-extension://") ||
+    event.message?.includes("browser-polyfill") ||
+    event.message?.includes("Failed to fetch") ||
+    event.error?.message?.includes("browser-polyfill") ||
+    event.error?.message?.includes("Failed to fetch")
+  ) {
+    event.preventDefault(); // 阻止错误冒泡
+    return false; // 阻止默认错误处理
+  }
+});
+
+// 处理未捕获的 Promise 错误
+window.addEventListener("unhandledrejection", (event) => {
+  // 忽略浏览器扩展相关的 Promise 错误
+  const error = event.reason;
+  const errorMessage = error?.message || String(error || "");
+  const errorStack = error?.stack || "";
+
+  if (
+    errorMessage.includes("browser-polyfill") ||
+    errorMessage.includes("Failed to fetch") ||
+    errorStack.includes("browser-polyfill") ||
+    errorStack.includes("extension://") ||
+    errorStack.includes("chrome-extension://")
+  ) {
+    event.preventDefault(); // 阻止错误冒泡
+    return false; // 阻止默认错误处理
+  }
+});
+
 // 引入重置样式
 import "./style/reset.scss";
 // 导入公共样式

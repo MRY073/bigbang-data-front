@@ -16,6 +16,19 @@ type Product = {
 
 const products = ref<Product[]>([]);
 const loading = ref(false);
+const selectedShop = ref<string>("modernNest"); // 默认选择第一个店铺
+
+// 店铺选项（与数据上传页面保持一致）
+const shopOptions = [
+  {
+    label: "Modern Nest|泰国",
+    value: "modernNest"
+  },
+  {
+    label: "shop07|泰国",
+    value: "shop07"
+  }
+];
 
 const API_LIST = "/api/trial/link/monitor/list";
 
@@ -76,10 +89,18 @@ function loadMockData() {
 }
 
 async function fetchData() {
+  if (!selectedShop.value) {
+    ElMessage.warning("请先选择店铺");
+    return;
+  }
+
   loading.value = true;
   const loader = showLoader("拉取数据中...");
   try {
-    const res = await fetch(API_LIST);
+    // 将店铺ID作为查询参数传递
+    const url = new URL(API_LIST, window.location.origin);
+    url.searchParams.append("shop", selectedShop.value);
+    const res = await fetch(url.toString());
     if (!res.ok) throw new Error("fetch failed");
     const data = await res.json();
     products.value = data || [];
@@ -119,6 +140,18 @@ onMounted(() => {
 <template>
   <div class="trial-monitor-page">
     <div class="controls">
+      <el-select
+        v-model="selectedShop"
+        placeholder="选择店铺"
+        style="width: 200px; margin-right: 12px"
+      >
+        <el-option
+          v-for="item in shopOptions"
+          :key="item.value"
+          :label="item.label"
+          :value="item.value"
+        />
+      </el-select>
       <el-button
         type="primary"
         :loading="loading"
@@ -229,8 +262,6 @@ onMounted(() => {
 }
 
 /* 颜色类 */
-.card-normal {
-}
 .card-alert-green {
   background: linear-gradient(180deg, #f6fff7 0%, #eefcf0 100%);
   border: 1px solid rgba(34, 197, 94, 0.08);

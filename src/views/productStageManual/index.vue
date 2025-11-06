@@ -68,6 +68,11 @@ const pageLoading = ref(false);
 const filterStage = ref<FilterStageType>("all");
 const selectedShop = ref<string>("modernNest"); // 默认选择第一个店铺
 
+// 分页相关
+const currentPage = ref(1); // 当前页码
+const pageSize = ref(20); // 每页显示数量
+const pageSizes = [10, 20, 50, 100, 200]; // 每页数量选项
+
 // 店铺选项（与数据上传页面保持一致）
 const shopOptions = [
   {
@@ -81,8 +86,8 @@ const shopOptions = [
 ];
 
 // 接口地址
-const API_GET_PRODUCTS = "/api/upload/products";
-const API_UPDATE_STAGE = "/api/upload/products/stage";
+const API_GET_PRODUCTS = "/api/products";
+const API_UPDATE_STAGE = "/api/products/stage";
 
 function showLoader(text = "加载中..."): LoadingInstance {
   return ElLoading.service({ lock: true, text, background: "rgba(0,0,0,0.2)" });
@@ -255,7 +260,11 @@ async function fetchData() {
       console.log("准备调用 initProducts，数据:", result.data);
       initProducts(result.data);
       console.log("initProducts 完成，products.value:", products.value);
-      ElMessage.success(result.message || "数据拉取成功");
+      // 重置到第一页
+      currentPage.value = 1;
+      ElMessage.success(
+        result.message || `数据拉取成功，共 ${products.value.length} 条`
+      );
     } else {
       debugger; // 11. 数据验证失败
       console.error("数据验证失败:", {
@@ -348,11 +357,35 @@ async function updateProductStage(
   }
 }
 
-/** 过滤后的产品列表 */
+/** 过滤后的产品列表（先过滤阶段，再分页） */
 const filteredProducts = computed(() => {
-  if (filterStage.value === "all") return products.value;
+  // 先根据阶段筛选
+  let filtered: ProductRow[];
+  if (filterStage.value === "all") {
+    filtered = products.value;
+  } else {
+    const stageType = filterStage.value as StageType;
+    // 只保留那些在该阶段有时间段或当前阶段为该阶段
+    filtered = products.value.filter(row => {
+      const stage = row[
+        `${stageType}_stage` as keyof ProductRow
+      ] as StageTimeRange;
+      const hasRange = stage?.start_time && stage?.end_time;
+      const isCurrent = row.currentStage === stageType;
+      return hasRange || isCurrent;
+    });
+  }
+
+  // 然后进行分页
+  const start = (currentPage.value - 1) * pageSize.value;
+  const end = start + pageSize.value;
+  return filtered.slice(start, end);
+});
+
+/** 过滤后的总数（用于分页显示） */
+const filteredTotal = computed(() => {
+  if (filterStage.value === "all") return products.value.length;
   const stageType = filterStage.value as StageType;
-  // 只保留那些在该阶段有时间段或当前阶段为该阶段
   return products.value.filter(row => {
     const stage = row[
       `${stageType}_stage` as keyof ProductRow
@@ -360,8 +393,19 @@ const filteredProducts = computed(() => {
     const hasRange = stage?.start_time && stage?.end_time;
     const isCurrent = row.currentStage === stageType;
     return hasRange || isCurrent;
-  });
+  }).length;
 });
+
+/** 处理页码变化 */
+function handleCurrentChange(page: number) {
+  currentPage.value = page;
+}
+
+/** 处理每页数量变化 */
+function handleSizeChange(size: number) {
+  pageSize.value = size;
+  currentPage.value = 1; // 重置到第一页
+}
 
 /** 点击复制 id/name */
 async function copyToClipboard(text: string) {
@@ -435,6 +479,29 @@ async function copyToClipboard(text: string) {
               row.currentStage === 'abandoned' ? 'row-abandoned' : ''
           "
         >
+          <!-- 当前阶段 - 移到最前面 -->
+          <el-table-column
+            prop="currentStage"
+            label="当前阶段"
+            width="140"
+            align="center"
+            header-align="center"
+            fixed="left"
+          >
+            <template #default="{ row }">
+              <div class="cell-center">
+                <span
+                  v-if="row.currentStage"
+                  :class="`current-badge stage-${row.currentStage}`"
+                  >{{
+                    stageTypeMap[row.currentStage] || row.currentStage
+                  }}</span
+                >
+                <span v-else class="dash">-</span>
+              </div>
+            </template>
+          </el-table-column>
+
           <el-table-column
             prop="product_id"
             label="产品ID"
@@ -683,24 +750,21 @@ async function copyToClipboard(text: string) {
               </div>
             </template>
           </el-table-column>
-
-          <el-table-column
-            prop="currentStage"
-            label="当前阶段"
-            width="140"
-            align="center"
-            header-align="center"
-          >
-            <template #default="{ row }">
-              <div class="cell-center">
-                <span v-if="row.currentStage" class="current-badge">{{
-                  stageTypeMap[row.currentStage] || row.currentStage
-                }}</span>
-                <span v-else class="dash">-</span>
-              </div>
-            </template>
-          </el-table-column>
         </el-table>
+      </div>
+
+      <!-- 分页组件 -->
+      <div v-if="filteredTotal > 0" class="pagination-wrapper">
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :page-sizes="pageSizes"
+          :total="filteredTotal"
+          :background="true"
+          layout="total, sizes, prev, pager, next, jumper"
+          @current-change="handleCurrentChange"
+          @size-change="handleSizeChange"
+        />
       </div>
     </el-card>
   </div>
@@ -818,14 +882,44 @@ async function copyToClipboard(text: string) {
   gap: 4px;
 }
 
-/* 当前阶段样式 */
+/* 当前阶段基础样式 */
 .current-badge {
-  padding: 4px 8px;
-  border-radius: 12px;
-  background: #eef6ff;
-  color: #409eff;
-  font-weight: 600;
-  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 16px;
+  font-weight: 700;
+  font-size: 14px;
+  display: inline-block;
+  min-width: 80px;
+  text-align: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* 测款阶段 - 蓝色系 */
+.current-badge.stage-testing {
+  background: linear-gradient(135deg, #409eff 0%, #66b1ff 100%);
+  color: #ffffff;
+  border: 2px solid #66b1ff;
+}
+
+/* 潜力阶段 - 绿色系 */
+.current-badge.stage-potential {
+  background: linear-gradient(135deg, #67c23a 0%, #85ce61 100%);
+  color: #ffffff;
+  border: 2px solid #85ce61;
+}
+
+/* 成品阶段 - 橙色/金色系 */
+.current-badge.stage-product {
+  background: linear-gradient(135deg, #e6a23c 0%, #f0a020 100%);
+  color: #ffffff;
+  border: 2px solid #f0a020;
+}
+
+/* 放弃阶段 - 灰色/深色系 */
+.current-badge.stage-abandoned {
+  background: linear-gradient(135deg, #909399 0%, #606266 100%);
+  color: #ffffff;
+  border: 2px solid #606266;
 }
 
 /* 空时显示短横线 */
@@ -873,5 +967,13 @@ async function copyToClipboard(text: string) {
 :deep(.el-table__fixed .el-table__fixed-right-shadow),
 :deep(.el-table__fixed-right .el-table__fixed-shadow) {
   box-shadow: none;
+}
+
+/* 分页组件样式 */
+.pagination-wrapper {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 0;
 }
 </style>
