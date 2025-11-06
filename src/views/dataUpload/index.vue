@@ -433,14 +433,17 @@ watch(
   max-width: 1400px;
   margin: 0 auto;
   padding: 0 20px;
+  padding-top: 20px;
 
   @media (min-width: 992px) {
     grid-template-columns: 1fr 1.2fr;
     padding: 0 40px;
+    padding-top: 20px;
   }
 
   @media (min-width: 1400px) {
     padding: 0 60px;
+    padding-top: 20px;
   }
 }
 

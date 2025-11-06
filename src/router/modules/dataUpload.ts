@@ -4,7 +4,7 @@ export default {
   path: "/dataUpload",
   redirect: "/dataUpload/index",
   meta: {
-    icon: "ep/upload-filled",
+    icon: "ri/upload-2-line",
     title: "数据上传",
     rank: dataUpload // 你可以根据需要调整菜单排序
   },
