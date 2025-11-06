@@ -61,6 +61,13 @@ class PureHttp {
   private httpInterceptorsRequest(): void {
     PureHttp.axiosInstance.interceptors.request.use(
       config => {
+        // 如果是 FormData，删除默认的 Content-Type，让浏览器自动设置（包含 boundary）
+        if (config.data instanceof FormData) {
+          // 删除可能存在的 Content-Type，让 axios 自动处理
+          if (config.headers) {
+            delete config.headers["Content-Type"];
+          }
+        }
         return config;
       },
       error => Promise.reject(error)
