@@ -5,93 +5,187 @@ import type { LoadingInstance } from "element-plus";
 
 defineOptions({ name: "ProductStageManual" });
 
-type StageKey = "trial" | "potential" | "finished" | "abandon" | "other";
+// 阶段类型定义（与后端接口一致）
+type StageType = "testing" | "potential" | "product" | "abandoned";
 
-type StageRange = [string, string] | null; // ["yyyy-MM-dd","yyyy-MM-dd"] or null
-
-type ProductRow = {
-  id: string;
-  name: string;
-  image?: string | null;
-  stages: Record<StageKey, StageRange>;
-  originalStages: Record<StageKey, StageRange>;
-  modifiedFlags: Record<StageKey, boolean>;
-  // computed at runtime
-  currentStage?: StageKey | null;
+// 阶段时间段对象
+type StageTimeRange = {
+  start_time: string | null;
+  end_time: string | null;
 };
+
+// 后端返回的商品数据结构
+type BackendProduct = {
+  product_id: string;
+  product_name: string;
+  product_image: string | null;
+  testing_stage: StageTimeRange;
+  potential_stage: StageTimeRange;
+  product_stage: StageTimeRange;
+  abandoned_stage: StageTimeRange;
+};
+
+// 前端使用的商品行数据
+type ProductRow = {
+  product_id: string;
+  product_name: string;
+  product_image: string | null;
+  testing_stage: {
+    start_time: string | null;
+    end_time: string | null;
+  };
+  potential_stage: {
+    start_time: string | null;
+    end_time: string | null;
+  };
+  product_stage: {
+    start_time: string | null;
+    end_time: string | null;
+  };
+  abandoned_stage: {
+    start_time: string | null;
+    end_time: string | null;
+  };
+  // 保存状态
+  savingFlags: Record<StageType, boolean>;
+  // computed at runtime
+  currentStage?: StageType | null;
+};
+
+// 阶段类型映射
+const stageTypeMap: Record<StageType, string> = {
+  testing: "测款阶段",
+  potential: "潜力阶段",
+  product: "成品阶段",
+  abandoned: "放弃阶段"
+};
+
+// 筛选阶段类型（包含"全部"选项）
+type FilterStageType = "all" | StageType;
 
 const products = ref<ProductRow[]>([]);
 const pageLoading = ref(false);
-const filterStage = ref<"all" | StageKey>("all");
+const filterStage = ref<FilterStageType>("all");
+const selectedShop = ref<string>("modernNest"); // 默认选择第一个店铺
 
-const API_LIST = "/api/products/stage/manual/list";
-const API_UPDATE = "/api/products/stage/manual/update";
+// 店铺选项（与数据上传页面保持一致）
+const shopOptions = [
+  {
+    label: "Modern Nest|泰国",
+    value: "modernNest"
+  },
+  {
+    label: "shop07|泰国",
+    value: "shop07"
+  }
+];
+
+// 接口地址
+const API_GET_PRODUCTS = "/api/upload/products";
+const API_UPDATE_STAGE = "/api/upload/products/stage";
 
 function showLoader(text = "加载中..."): LoadingInstance {
   return ElLoading.service({ lock: true, text, background: "rgba(0,0,0,0.2)" });
 }
 
-function parseDateStr(s?: string | null) {
-  if (!s) return null;
-  return new Date(s + "T00:00:00");
+/**
+ * 将 ISO 8601 格式字符串转换为日期时间选择器可用的格式
+ * @param isoString ISO 8601 格式字符串，如 "2025-01-01T00:00:00.000Z"
+ * @returns 日期时间字符串，如 "2025-01-01 00:00:00"，如果输入为 null 则返回 null
+ */
+function isoToDateTime(isoString: string | null): string | null {
+  if (!isoString) return null;
+  try {
+    const date = new Date(isoString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    const seconds = String(date.getSeconds()).padStart(2, "0");
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  } catch {
+    return null;
+  }
 }
 
-function formatRangeForCompare(r: StageRange) {
-  return r ? `${r[0]}_${r[1]}` : "null";
+/**
+ * 将日期时间字符串转换为 ISO 8601 格式
+ * @param dateTimeString 日期时间字符串，如 "2025-01-01 00:00:00"
+ * @returns ISO 8601 格式字符串，如 "2025-01-01T00:00:00.000Z"，如果输入为 null 或空则返回 null
+ */
+function dateTimeToIso(dateTimeString: string | null): string | null {
+  if (!dateTimeString || dateTimeString.trim() === "") return null;
+  try {
+    const date = new Date(dateTimeString);
+    if (isNaN(date.getTime())) return null;
+    return date.toISOString();
+  } catch {
+    return null;
+  }
 }
 
-function computeCurrentStageForRow(row: ProductRow): StageKey | null {
+/**
+ * 计算商品当前所处的阶段
+ */
+function computeCurrentStageForRow(row: ProductRow): StageType | null {
   const today = new Date();
-  // priority: abandon -> other -> finished -> potential -> trial
-  const order: StageKey[] = [
-    "abandon",
-    "other",
-    "finished",
-    "potential",
-    "trial"
-  ];
-  for (const key of order) {
-    const rng = row.stages[key];
-    if (rng && rng[0] && rng[1]) {
-      const start = parseDateStr(rng[0])!;
-      const end = parseDateStr(rng[1])!;
-      if (start <= today && today <= end) return key;
+  // priority: abandoned -> product -> potential -> testing
+  const order: StageType[] = ["abandoned", "product", "potential", "testing"];
+  for (const stageType of order) {
+    const stage = row[
+      `${stageType}_stage` as keyof ProductRow
+    ] as StageTimeRange;
+    if (stage?.start_time && stage?.end_time) {
+      try {
+        // 将本地格式转换为ISO格式后再解析，确保日期解析正确
+        const startTimeIso = dateTimeToIso(stage.start_time);
+        const endTimeIso = dateTimeToIso(stage.end_time);
+        if (startTimeIso && endTimeIso) {
+          const start = new Date(startTimeIso);
+          const end = new Date(endTimeIso);
+          if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+            if (start <= today && today <= end) return stageType;
+          }
+        }
+      } catch {
+        // 忽略日期解析错误
+      }
     }
   }
   return null;
 }
 
-function initProducts(list: Partial<ProductRow>[]) {
-  products.value = list.map(item => {
-    const stagesDefault: Record<StageKey, StageRange> = {
-      trial: null,
-      potential: null,
-      finished: null,
-      abandon: null,
-      other: null
-    };
-    const srcStages = (item as any).stages ?? {};
-    const merged: Record<StageKey, StageRange> = { ...stagesDefault };
-    (Object.keys(merged) as StageKey[]).forEach(k => {
-      const v = srcStages[k];
-      merged[k] =
-        Array.isArray(v) && v.length === 2
-          ? [String(v[0]), String(v[1])]
-          : null;
-    });
-
+/**
+ * 初始化商品列表数据
+ */
+function initProducts(backendProducts: BackendProduct[]) {
+  products.value = backendProducts.map(item => {
     const row: ProductRow = {
-      id: String((item as any).id ?? ""),
-      name: String((item as any).name ?? ""),
-      image: (item as any).image ?? null,
-      stages: merged,
-      originalStages: JSON.parse(JSON.stringify(merged)),
-      modifiedFlags: {
-        trial: false,
+      product_id: item.product_id,
+      product_name: item.product_name,
+      product_image: item.product_image,
+      testing_stage: {
+        start_time: isoToDateTime(item.testing_stage?.start_time || null),
+        end_time: isoToDateTime(item.testing_stage?.end_time || null)
+      },
+      potential_stage: {
+        start_time: isoToDateTime(item.potential_stage?.start_time || null),
+        end_time: isoToDateTime(item.potential_stage?.end_time || null)
+      },
+      product_stage: {
+        start_time: isoToDateTime(item.product_stage?.start_time || null),
+        end_time: isoToDateTime(item.product_stage?.end_time || null)
+      },
+      abandoned_stage: {
+        start_time: isoToDateTime(item.abandoned_stage?.start_time || null),
+        end_time: isoToDateTime(item.abandoned_stage?.end_time || null)
+      },
+      savingFlags: {
+        testing: false,
         potential: false,
-        finished: false,
-        abandon: false,
-        other: false
+        product: false,
+        abandoned: false
       },
       currentStage: null
     };
@@ -100,142 +194,171 @@ function initProducts(list: Partial<ProductRow>[]) {
   });
 }
 
-/** 标记单个阶段的修改状态 */
-function markStageModified(row: ProductRow, key: StageKey) {
-  const orig = row.originalStages[key];
-  const cur = row.stages[key];
-  row.modifiedFlags[key] =
-    formatRangeForCompare(orig) !== formatRangeForCompare(cur);
-  // recompute current stage after any change
-  row.currentStage = computeCurrentStageForRow(row);
-}
-
 /** 拉取数据（仅手动触发） */
 async function fetchData() {
-  pageLoading.value = true;
-  const loader = showLoader("拉取数据中...");
-  try {
-    const res = await fetch(API_LIST);
-    if (!res.ok) throw new Error("fetch failed");
-    const data = await res.json();
-    initProducts(data || []);
-  } catch {
-    // mock 初始数据（便于直接看到页面效果）
-    initProducts([
-      {
-        id: "SKU1001",
-        name: "商品 A",
-        image: "https://via.placeholder.com/80?text=A",
-        stages: {
-          trial: ["2025-09-01", "2025-09-10"],
-          potential: ["2025-09-11", "2025-09-20"],
-          finished: ["2025-09-21", "2025-10-20"],
-          abandon: null,
-          other: null
-        }
-      },
-      {
-        id: "SKU1002",
-        name: "商品 B",
-        image: "https://via.placeholder.com/80?text=B",
-        stages: {
-          trial: null,
-          potential: null,
-          finished: null,
-          abandon: ["2025-08-01", "2025-12-31"],
-          other: null
-        }
-      },
-      {
-        id: "SKU1003",
-        name: "商品 C 非常长的名称示例",
-        image: "https://via.placeholder.com/80?text=C",
-        stages: {
-          trial: ["2025-10-01", "2025-10-10"],
-          potential: null,
-          finished: null,
-          abandon: null,
-          other: ["2025-10-11", "2025-10-20"]
-        }
-      },
-      {
-        id: "SKU1004",
-        name: "商品 D",
-        image: null,
-        stages: {
-          trial: null,
-          potential: ["2025-10-01", "2025-12-31"],
-          finished: null,
-          abandon: null,
-          other: null
-        }
-      }
-    ]);
-    ElMessage.info("使用本地示例数据（后端不可用）");
-  } finally {
-    loader.close();
-    pageLoading.value = false;
-  }
-}
+  debugger; // 1. 函数入口
+  console.log("=== fetchData 开始 ===");
+  console.log("selectedShop.value:", selectedShop.value);
 
-/** 提交改变（只提交被修改的阶段数据） */
-async function submitChanges() {
-  // 收集修改项
-  const payload = products.value
-    .map(row => {
-      const changedStages: Record<string, StageRange> = {};
-      (Object.keys(row.stages) as StageKey[]).forEach(k => {
-        if (row.modifiedFlags[k]) changedStages[k] = row.stages[k];
-      });
-      return {
-        id: row.id,
-        changes: changedStages
-      };
-    })
-    .filter(item => Object.keys(item.changes).length > 0);
-
-  if (!payload.length) {
-    ElMessage.info("没有需要提交的更改");
+  if (!selectedShop.value) {
+    debugger; // 2. 店铺ID为空
+    ElMessage.warning("请先选择店铺");
     return;
   }
 
+  debugger; // 3. 店铺ID验证通过
   pageLoading.value = true;
-  const loader = showLoader("提交中...");
+  const loader = showLoader("拉取数据中...");
+
   try {
-    const res = await fetch(API_UPDATE, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-    if (!res.ok) throw new Error("提交失败");
-    // 假设成功：同步 originalStages 与清除 modifiedFlags
-    payload.forEach(p => {
-      const row = products.value.find(r => r.id === p.id);
-      if (!row) return;
-      Object.keys(p.changes).forEach((k: string) => {
-        const key = k as StageKey;
-        row.originalStages[key] = row.stages[key];
-        row.modifiedFlags[key] = false;
+    // 将店铺ID作为查询参数传递
+    debugger; // 4. 开始构建URL
+    const url = new URL(API_GET_PRODUCTS, window.location.origin);
+    url.searchParams.append("shop", selectedShop.value);
+    const requestUrl = url.toString();
+    console.log("请求URL:", requestUrl);
+    console.log("API_GET_PRODUCTS:", API_GET_PRODUCTS);
+    console.log("window.location.origin:", window.location.origin);
+
+    debugger; // 5. 发送fetch请求前
+    const res = await fetch(requestUrl);
+    console.log("响应状态:", res.status, res.statusText);
+    console.log("响应headers:", res.headers);
+
+    debugger; // 6. fetch响应后
+    if (!res.ok) {
+      debugger; // 7. HTTP状态错误
+      const errorText = await res.text();
+      console.error("HTTP错误响应内容:", errorText);
+      throw new Error(`HTTP error! status: ${res.status}`);
+    }
+
+    debugger; // 8. 开始解析JSON
+    const result = await res.json();
+    console.log("接口返回结果:", result);
+    console.log("result.success:", result.success);
+    console.log("result.data:", result.data);
+    console.log(
+      "result.data类型:",
+      Array.isArray(result.data) ? "数组" : typeof result.data
+    );
+    if (result.data && Array.isArray(result.data)) {
+      console.log("result.data长度:", result.data.length);
+      if (result.data.length > 0) {
+        console.log("第一个商品数据:", result.data[0]);
+      }
+    }
+
+    debugger; // 9. JSON解析完成
+    if (result.success && result.data) {
+      debugger; // 10. 数据验证通过，准备初始化
+      console.log("准备调用 initProducts，数据:", result.data);
+      initProducts(result.data);
+      console.log("initProducts 完成，products.value:", products.value);
+      ElMessage.success(result.message || "数据拉取成功");
+    } else {
+      debugger; // 11. 数据验证失败
+      console.error("数据验证失败:", {
+        success: result.success,
+        hasData: !!result.data,
+        error: result.error,
+        message: result.message
       });
-    });
-    ElMessage.success("提交成功");
-  } catch {
-    ElMessage.error("提交失败，请重试");
+      throw new Error(result.error || result.message || "查询失败");
+    }
+  } catch (error: any) {
+    debugger; // 12. 捕获到错误
+    console.error("=== fetchData 错误 ===");
+    console.error("错误类型:", error?.constructor?.name);
+    console.error("错误消息:", error?.message);
+    console.error("错误堆栈:", error?.stack);
+    console.error("完整错误对象:", error);
+    ElMessage.error(error?.message || "网络连接失败，请检查网络后重试");
+    // 清空数据
+    products.value = [];
   } finally {
+    debugger; // 13. finally清理
+    console.log("=== fetchData 结束 ===");
     loader.close();
     pageLoading.value = false;
+  }
+}
+
+/** 更新单个商品的阶段时间段 */
+async function updateProductStage(
+  productId: string,
+  stageType: StageType,
+  startTime: string | null,
+  endTime: string | null
+) {
+  if (!selectedShop.value) {
+    ElMessage.warning("请先选择店铺");
+    return;
+  }
+
+  // 找到对应的商品行
+  const row = products.value.find(r => r.product_id === productId);
+  if (!row) {
+    ElMessage.error("商品不存在");
+    return;
+  }
+
+  // 设置保存状态
+  row.savingFlags[stageType] = true;
+
+  try {
+    // 转换时间格式
+    const startTimeIso = dateTimeToIso(startTime);
+    const endTimeIso = dateTimeToIso(endTime);
+
+    const response = await fetch(API_UPDATE_STAGE, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        product_id: productId,
+        shop: selectedShop.value,
+        stage_type: stageType,
+        start_time: startTimeIso,
+        end_time: endTimeIso
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+
+    if (result.success) {
+      ElMessage.success(result.message || "更新成功");
+      // 重新计算当前阶段
+      row.currentStage = computeCurrentStageForRow(row);
+      // 可以选择重新拉取数据以确保数据同步
+      // fetchData();
+    } else {
+      throw new Error(result.error || result.message || "更新失败");
+    }
+  } catch (error: any) {
+    console.error("更新阶段失败:", error);
+    ElMessage.error(error?.message || "网络连接失败，请检查网络后重试");
+  } finally {
+    row.savingFlags[stageType] = false;
   }
 }
 
 /** 过滤后的产品列表 */
 const filteredProducts = computed(() => {
   if (filterStage.value === "all") return products.value;
-  const key = filterStage.value as StageKey;
+  const stageType = filterStage.value as StageType;
   // 只保留那些在该阶段有时间段或当前阶段为该阶段
   return products.value.filter(row => {
-    const rng = row.stages[key];
-    const hasRange = rng && rng[0] && rng[1];
-    const isCurrent = row.currentStage === key;
+    const stage = row[
+      `${stageType}_stage` as keyof ProductRow
+    ] as StageTimeRange;
+    const hasRange = stage?.start_time && stage?.end_time;
+    const isCurrent = row.currentStage === stageType;
     return hasRange || isCurrent;
   });
 });
@@ -258,11 +381,6 @@ async function copyToClipboard(text: string) {
     ElMessage.error("复制失败");
   }
 }
-
-onMounted(() => {
-  // 页面进入不自动拉取，使用示例数据以便查看（也可按需注释）
-  fetchData();
-});
 </script>
 
 <template>
@@ -276,15 +394,26 @@ onMounted(() => {
             style="width: 220px"
           >
             <el-option label="全部" value="all" />
-            <el-option label="测款阶段" value="trial" />
+            <el-option label="测款阶段" value="testing" />
             <el-option label="潜力阶段" value="potential" />
-            <el-option label="成品阶段" value="finished" />
-            <el-option label="放弃阶段" value="abandon" />
-            <el-option label="其他阶段" value="other" />
+            <el-option label="成品阶段" value="product" />
+            <el-option label="放弃阶段" value="abandoned" />
           </el-select>
         </div>
 
         <div class="actions">
+          <el-select
+            v-model="selectedShop"
+            placeholder="选择店铺"
+            style="width: 200px; margin-right: 12px"
+          >
+            <el-option
+              v-for="item in shopOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
           <el-button
             type="primary"
             :loading="pageLoading"
@@ -292,243 +421,287 @@ onMounted(() => {
             @click="fetchData"
             >拉取数据</el-button
           >
-          <el-button
-            type="success"
-            :loading="pageLoading"
-            icon="el-icon-upload"
-            @click="submitChanges"
-            >提交更改</el-button
-          >
         </div>
       </div>
 
-      <el-table
-        :data="filteredProducts"
-        stripe
-        style="width: 100%"
-        :row-key="row => row.id"
-        :row-class-name="
-          ({ row }) =>
-            row.currentStage === 'abandon'
-              ? 'row-abandon'
-              : row.currentStage === 'other'
-                ? 'row-other'
-                : ''
-        "
-      >
-        <el-table-column
-          prop="id"
-          label="产品ID"
-          width="160"
-          align="center"
-          header-align="center"
-          fixed="left"
+      <div class="table-wrapper">
+        <el-table
+          :data="filteredProducts"
+          stripe
+          style="width: 100%"
+          :row-key="row => row.product_id"
+          :row-class-name="
+            ({ row }) =>
+              row.currentStage === 'abandoned' ? 'row-abandoned' : ''
+          "
         >
-          <template #default="{ row }">
-            <div class="cell-center">
-              <span
-                class="plain-text"
-                title="点击复制"
-                @click.stop="copyToClipboard(row.id)"
-                >{{ row.id }}</span
-              >
-            </div>
-          </template>
-        </el-table-column>
-
-        <el-table-column
-          prop="name"
-          label="产品名称"
-          width="300"
-          align="center"
-          header-align="center"
-          fixed="left"
-        >
-          <template #default="{ row }">
-            <div class="cell-center">
-              <span
-                class="plain-text"
-                title="点击复制"
-                @click.stop="copyToClipboard(row.name)"
-                >{{ row.name }}</span
-              >
-            </div>
-          </template>
-        </el-table-column>
-
-        <el-table-column
-          prop="image"
-          label="产品主图"
-          width="120"
-          align="center"
-          header-align="center"
-          fixed="left"
-        >
-          <template #default="{ row }">
-            <div class="cell-center">
-              <img v-if="row.image" :src="row.image" alt="主图" class="thumb" />
-              <div v-else class="no-img">无图</div>
-            </div>
-          </template>
-        </el-table-column>
-
-        <!-- 各阶段列，使用日期区间选择器 -->
-        <el-table-column
-          label="测款阶段"
-          width="240"
-          align="center"
-          header-align="center"
-        >
-          <template #default="{ row }">
-            <div class="editable-cell">
-              <el-date-picker
-                v-model="row.stages.trial"
-                type="daterange"
-                range-separator="至"
-                start-placeholder="开始日期"
-                end-placeholder="结束日期"
-                value-format="yyyy-MM-dd"
-                unlink-panels
-                clearable
-                style="width: 200px"
-                @change="() => markStageModified(row, 'trial')"
-              />
-              <div v-if="row.modifiedFlags.trial" class="modified-note">
-                已修改
+          <el-table-column
+            prop="product_id"
+            label="产品ID"
+            width="160"
+            align="center"
+            header-align="center"
+            fixed="left"
+          >
+            <template #default="{ row }">
+              <div class="cell-center">
+                <span
+                  class="plain-text"
+                  title="点击复制"
+                  @click.stop="copyToClipboard(row.product_id)"
+                  >{{ row.product_id }}</span
+                >
               </div>
-            </div>
-          </template>
-        </el-table-column>
+            </template>
+          </el-table-column>
 
-        <el-table-column
-          label="潜力阶段"
-          width="240"
-          align="center"
-          header-align="center"
-        >
-          <template #default="{ row }">
-            <div class="editable-cell">
-              <el-date-picker
-                v-model="row.stages.potential"
-                type="daterange"
-                range-separator="至"
-                start-placeholder="开始日期"
-                end-placeholder="结束日期"
-                value-format="yyyy-MM-dd"
-                clearable
-                style="width: 200px"
-                @change="() => markStageModified(row, 'potential')"
-              />
-              <div v-if="row.modifiedFlags.potential" class="modified-note">
-                已修改
+          <el-table-column
+            prop="product_name"
+            label="产品名称"
+            width="300"
+            align="center"
+            header-align="center"
+            fixed="left"
+          >
+            <template #default="{ row }">
+              <div class="cell-center">
+                <span
+                  class="plain-text"
+                  title="点击复制"
+                  @click.stop="copyToClipboard(row.product_name)"
+                  >{{ row.product_name }}</span
+                >
               </div>
-            </div>
-          </template>
-        </el-table-column>
+            </template>
+          </el-table-column>
 
-        <el-table-column
-          label="成品阶段"
-          width="240"
-          align="center"
-          header-align="center"
-        >
-          <template #default="{ row }">
-            <div class="editable-cell">
-              <el-date-picker
-                v-model="row.stages.finished"
-                type="daterange"
-                range-separator="至"
-                start-placeholder="开始日期"
-                end-placeholder="结束日期"
-                value-format="yyyy-MM-dd"
-                clearable
-                style="width: 200px"
-                @change="() => markStageModified(row, 'finished')"
-              />
-              <div v-if="row.modifiedFlags.finished" class="modified-note">
-                已修改
+          <el-table-column
+            prop="product_image"
+            label="产品主图"
+            width="120"
+            align="center"
+            header-align="center"
+            fixed="left"
+          >
+            <template #default="{ row }">
+              <div class="cell-center">
+                <img
+                  v-if="row.product_image"
+                  :src="row.product_image"
+                  alt="主图"
+                  class="thumb"
+                />
+                <div v-else class="no-img">无图</div>
               </div>
-            </div>
-          </template>
-        </el-table-column>
+            </template>
+          </el-table-column>
 
-        <el-table-column
-          label="放弃阶段"
-          width="240"
-          align="center"
-          header-align="center"
-        >
-          <template #default="{ row }">
-            <div class="editable-cell">
-              <el-date-picker
-                v-model="row.stages.abandon"
-                type="daterange"
-                range-separator="至"
-                start-placeholder="开始日期"
-                end-placeholder="结束日期"
-                value-format="yyyy-MM-dd"
-                clearable
-                style="width: 200px"
-                @change="() => markStageModified(row, 'abandon')"
-              />
-              <div v-if="row.modifiedFlags.abandon" class="modified-note">
-                已修改
+          <!-- 测款阶段 -->
+          <el-table-column
+            label="测款阶段"
+            width="320"
+            align="center"
+            header-align="center"
+          >
+            <template #default="{ row }">
+              <div class="stage-editor">
+                <div class="time-picker-group">
+                  <el-date-picker
+                    v-model="row.testing_stage.start_time"
+                    type="datetime"
+                    placeholder="开始时间"
+                    value-format="YYYY-MM-DD HH:mm:ss"
+                    format="YYYY-MM-DD HH:mm:ss"
+                    clearable
+                    style="width: 140px; margin-bottom: 8px"
+                  />
+                  <el-date-picker
+                    v-model="row.testing_stage.end_time"
+                    type="datetime"
+                    placeholder="结束时间"
+                    value-format="YYYY-MM-DD HH:mm:ss"
+                    format="YYYY-MM-DD HH:mm:ss"
+                    clearable
+                    style="width: 140px"
+                  />
+                </div>
+                <el-button
+                  type="primary"
+                  size="small"
+                  :loading="row.savingFlags.testing"
+                  @click="
+                    updateProductStage(
+                      row.product_id,
+                      'testing',
+                      row.testing_stage.start_time,
+                      row.testing_stage.end_time
+                    )
+                  "
+                  >保存</el-button
+                >
               </div>
-            </div>
-          </template>
-        </el-table-column>
+            </template>
+          </el-table-column>
 
-        <el-table-column
-          label="其他阶段"
-          width="240"
-          align="center"
-          header-align="center"
-        >
-          <template #default="{ row }">
-            <div class="editable-cell">
-              <el-date-picker
-                v-model="row.stages.other"
-                type="daterange"
-                range-separator="至"
-                start-placeholder="开始日期"
-                end-placeholder="结束日期"
-                value-format="yyyy-MM-dd"
-                clearable
-                style="width: 200px"
-                @change="() => markStageModified(row, 'other')"
-              />
-              <div v-if="row.modifiedFlags.other" class="modified-note">
-                已修改
+          <!-- 潜力阶段 -->
+          <el-table-column
+            label="潜力阶段"
+            width="320"
+            align="center"
+            header-align="center"
+          >
+            <template #default="{ row }">
+              <div class="stage-editor">
+                <div class="time-picker-group">
+                  <el-date-picker
+                    v-model="row.potential_stage.start_time"
+                    type="datetime"
+                    placeholder="开始时间"
+                    value-format="YYYY-MM-DD HH:mm:ss"
+                    format="YYYY-MM-DD HH:mm:ss"
+                    clearable
+                    style="width: 140px; margin-bottom: 8px"
+                  />
+                  <el-date-picker
+                    v-model="row.potential_stage.end_time"
+                    type="datetime"
+                    placeholder="结束时间"
+                    value-format="YYYY-MM-DD HH:mm:ss"
+                    format="YYYY-MM-DD HH:mm:ss"
+                    clearable
+                    style="width: 140px"
+                  />
+                </div>
+                <el-button
+                  type="primary"
+                  size="small"
+                  :loading="row.savingFlags.potential"
+                  @click="
+                    updateProductStage(
+                      row.product_id,
+                      'potential',
+                      row.potential_stage.start_time,
+                      row.potential_stage.end_time
+                    )
+                  "
+                  >保存</el-button
+                >
               </div>
-            </div>
-          </template>
-        </el-table-column>
+            </template>
+          </el-table-column>
 
-        <el-table-column
-          prop="currentStage"
-          label="当前阶段"
-          width="140"
-          align="center"
-          header-align="center"
-        >
-          <template #default="{ row }">
-            <div class="cell-center">
-              <span v-if="row.currentStage" class="current-badge">{{
-                row.currentStage === "trial"
-                  ? "测款"
-                  : row.currentStage === "potential"
-                    ? "潜力"
-                    : row.currentStage === "finished"
-                      ? "成品"
-                      : row.currentStage === "abandon"
-                        ? "放弃"
-                        : "其他"
-              }}</span>
-              <span v-else class="dash">-</span>
-            </div>
-          </template>
-        </el-table-column>
-      </el-table>
+          <!-- 成品阶段 -->
+          <el-table-column
+            label="成品阶段"
+            width="320"
+            align="center"
+            header-align="center"
+          >
+            <template #default="{ row }">
+              <div class="stage-editor">
+                <div class="time-picker-group">
+                  <el-date-picker
+                    v-model="row.product_stage.start_time"
+                    type="datetime"
+                    placeholder="开始时间"
+                    value-format="YYYY-MM-DD HH:mm:ss"
+                    format="YYYY-MM-DD HH:mm:ss"
+                    clearable
+                    style="width: 140px; margin-bottom: 8px"
+                  />
+                  <el-date-picker
+                    v-model="row.product_stage.end_time"
+                    type="datetime"
+                    placeholder="结束时间"
+                    value-format="YYYY-MM-DD HH:mm:ss"
+                    format="YYYY-MM-DD HH:mm:ss"
+                    clearable
+                    style="width: 140px"
+                  />
+                </div>
+                <el-button
+                  type="primary"
+                  size="small"
+                  :loading="row.savingFlags.product"
+                  @click="
+                    updateProductStage(
+                      row.product_id,
+                      'product',
+                      row.product_stage.start_time,
+                      row.product_stage.end_time
+                    )
+                  "
+                  >保存</el-button
+                >
+              </div>
+            </template>
+          </el-table-column>
+
+          <!-- 放弃阶段 -->
+          <el-table-column
+            label="放弃阶段"
+            width="320"
+            align="center"
+            header-align="center"
+          >
+            <template #default="{ row }">
+              <div class="stage-editor">
+                <div class="time-picker-group">
+                  <el-date-picker
+                    v-model="row.abandoned_stage.start_time"
+                    type="datetime"
+                    placeholder="开始时间"
+                    value-format="YYYY-MM-DD HH:mm:ss"
+                    format="YYYY-MM-DD HH:mm:ss"
+                    clearable
+                    style="width: 140px; margin-bottom: 8px"
+                  />
+                  <el-date-picker
+                    v-model="row.abandoned_stage.end_time"
+                    type="datetime"
+                    placeholder="结束时间"
+                    value-format="YYYY-MM-DD HH:mm:ss"
+                    format="YYYY-MM-DD HH:mm:ss"
+                    clearable
+                    style="width: 140px"
+                  />
+                </div>
+                <el-button
+                  type="primary"
+                  size="small"
+                  :loading="row.savingFlags.abandoned"
+                  @click="
+                    updateProductStage(
+                      row.product_id,
+                      'abandoned',
+                      row.abandoned_stage.start_time,
+                      row.abandoned_stage.end_time
+                    )
+                  "
+                  >保存</el-button
+                >
+              </div>
+            </template>
+          </el-table-column>
+
+          <el-table-column
+            prop="currentStage"
+            label="当前阶段"
+            width="140"
+            align="center"
+            header-align="center"
+          >
+            <template #default="{ row }">
+              <div class="cell-center">
+                <span v-if="row.currentStage" class="current-badge">{{
+                  stageTypeMap[row.currentStage] || row.currentStage
+                }}</span>
+                <span v-else class="dash">-</span>
+              </div>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
     </el-card>
   </div>
 </template>
@@ -564,9 +737,39 @@ onMounted(() => {
   gap: 8px;
 }
 
+/* 表格容器 - 添加横向滚动 */
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  /* 优化滚动条样式 */
+  scrollbar-width: thin;
+  scrollbar-color: #c1c1c1 #f1f1f1;
+}
+
+/* Webkit浏览器滚动条样式 */
+.table-wrapper::-webkit-scrollbar {
+  height: 8px;
+}
+
+.table-wrapper::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.table-wrapper::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
 /* 表格占满父元素宽度 */
 .stage-card :deep(.el-table) {
   width: 100%;
+  min-width: 1400px; /* 设置最小宽度，确保所有列都能显示 */
 }
 
 /* 表格单元格内容水平垂直居中 */
@@ -598,21 +801,21 @@ onMounted(() => {
   border-radius: 6px;
 }
 
-/* 单元格内竖直布局，预留底部空间显示已修改 */
-.editable-cell {
+/* 阶段编辑器布局 */
+.stage-editor {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
+  padding: 8px 0;
 }
 
-/* 已修改提示：红色，小字，固定在选择器下方 */
-.modified-note {
-  color: #ff4d4f;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1;
+.time-picker-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
 }
 
 /* 当前阶段样式 */
@@ -631,21 +834,12 @@ onMounted(() => {
 }
 
 /* 放弃阶段整行深灰，字体浅白 */
-:deep(.el-table__row.row-abandon) > td {
+:deep(.el-table__row.row-abandoned) > td {
   background-color: #2f2f33 !important;
   color: #f5f5f7 !important;
 }
-:deep(.el-table__row.row-abandon) {
+:deep(.el-table__row.row-abandoned) {
   --el-color-text: #f5f5f7;
-}
-
-/* 其他阶段整行浅灰，字体白色 */
-:deep(.el-table__row.row-other) > td {
-  background-color: #6b6f73 !important;
-  color: #ffffff !important;
-}
-:deep(.el-table__row.row-other) {
-  --el-color-text: #ffffff;
 }
 
 /* 复制文本样式为正常文本 */
@@ -655,9 +849,10 @@ onMounted(() => {
   user-select: text;
 }
 
-/* 响应式处理：小屏滚动 */
+/* 响应式处理：确保表格内部滚动正常工作 */
 .stage-card :deep(.el-table__body-wrapper) {
-  overflow-x: auto;
+  overflow-x: visible;
+  overflow-y: auto;
 }
 
 /* 确保固定列在视觉上正常覆盖（Element Plus 固定列样式增强） */
