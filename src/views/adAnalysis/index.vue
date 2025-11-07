@@ -8,42 +8,64 @@ import type { EChartsOption } from "echarts";
 defineOptions({ name: "AdAnalysis" });
 
 // 类型定义
-type AdType = "finished" | "trial" | "unknown";
-type TrendData = {
+type TrendDataItem = {
   date: string;
-  cost: number;
-  finishedCost: number;
-  trialCost: number;
-  unknownCost: number;
+  testing_stage_spend: number;
+  potential_stage_spend: number;
+  product_stage_spend: number;
+  abandoned_stage_spend: number;
+  no_stage_spend: number;
 };
-type DailyData = {
+
+type RatioData = {
   date: string;
-  finishedCost: number;
-  trialCost: number;
-  unknownCost: number;
-  finishedIds: string[];
-  trialIds: string[];
-  unknownIds: string[];
+  stages: {
+    testing_stage: { spend: number };
+    potential_stage: { spend: number };
+    product_stage: {
+      spend: number;
+      sales_amount: number;
+      roi: number;
+    };
+    abandoned_stage: { spend: number };
+    no_stage: { spend: number };
+  };
 };
 
 // 状态
 const selectedDate = ref<string>(new Date().toISOString().split("T")[0]);
+const selectedShop = ref<string>("modernNest"); // 默认选择第一个店铺
 const trendChart = ref<echarts.ECharts>();
 const pieChart = ref<echarts.ECharts>();
-const dailyData = ref<DailyData>();
+const ratioData = ref<RatioData>();
 const loading = ref(false);
+const trendLoading = ref(false); // 趋势图加载状态
+
+// 店铺选项（与数据上传页面保持一致）
+const shopOptions = [
+  {
+    label: "Modern Nest|泰国",
+    value: "modernNest"
+  },
+  {
+    label: "shop07|泰国",
+    value: "shop07"
+  }
+];
 
 // API
 const API = {
-  TREND: "/api/ad/trend",
-  DAILY: "/api/ad/daily"
+  TREND: "/api/products/ad-trend",
+  RATIO: "/api/products/ad-ratio"
 };
 
 // 图表配色方案
 const COLORS = {
-  finished: "#67C23A", // 成品-绿色
-  trial: "#409EFF", // 测款-蓝色
-  unknown: "#909399" // 未知-灰色
+  testing: "#409EFF", // 测款阶段-蓝色
+  potential: "#E6A23C", // 潜力阶段-橙色
+  product: "#67C23A", // 成品阶段-绿色
+  abandoned: "#F56C6C", // 放弃阶段-红色
+  noStage: "#909399" // 无阶段-灰色
 };
 
 /**
@@ -57,7 +79,7 @@ function initTrendChart(container: HTMLElement) {
       axisPointer: { type: "shadow" }
     },
     legend: {
-      data: ["成品广告", "测款广告", "未分类广告"]
+      data: ["测款阶段", "潜力阶段", "成品阶段", "放弃阶段", "无阶段"]
     },
     grid: {
       left: "3%",
@@ -75,24 +97,38 @@ function initTrendChart(container: HTMLElement) {
     },
     series: [
       {
-        name: "成品广告",
+        name: "测款阶段",
         type: "bar",
         stack: "total",
-        color: COLORS.finished,
+        color: COLORS.testing,
         data: []
       },
       {
-        name: "测款广告",
+        name: "潜力阶段",
         type: "bar",
         stack: "total",
-        color: COLORS.trial,
+        color: COLORS.potential,
         data: []
       },
       {
-        name: "未分类广告",
+        name: "成品阶段",
         type: "bar",
         stack: "total",
-        color: COLORS.unknown,
+        color: COLORS.product,
+        data: []
+      },
+      {
+        name: "放弃阶段",
+        type: "bar",
+        stack: "total",
+        color: COLORS.abandoned,
+        data: []
+      },
+      {
+        name: "无阶段",
+        type: "bar",
+        stack: "total",
+        color: COLORS.noStage,
         data: []
       }
     ]
@@ -136,58 +172,85 @@ function initPieChart(container: HTMLElement) {
  * 更新趋势图数据
  */
 async function updateTrendData() {
-  loading.value = true;
+  if (!selectedShop.value) {
+    ElMessage.warning("请先选择店铺");
+    return;
+  }
+
+  trendLoading.value = true;
   const loader = ElLoading.service({ text: "加载趋势数据..." });
 
   try {
-    const res = await fetch(API.TREND);
+    // 将店铺ID作为查询参数传递
+    const url = new URL(API.TREND, window.location.origin);
+    url.searchParams.append("shop", selectedShop.value);
+    const res = await fetch(url.toString());
     if (!res.ok) throw new Error("获取趋势数据失败");
-    const data: TrendData[] = await res.json();
+    const result = await res.json();
+
+    if (!result.success || !result.data) {
+      throw new Error(result.error || result.message || "查询失败");
+    }
+
+    const data: TrendDataItem[] = result.data;
 
     const dates = data.map(d => d.date);
-    const finishedCosts = data.map(d => d.finishedCost);
-    const trialCosts = data.map(d => d.trialCost);
-    const unknownCosts = data.map(d => d.unknownCost);
+    const testingSpends = data.map(d => d.testing_stage_spend);
+    const potentialSpends = data.map(d => d.potential_stage_spend);
+    const productSpends = data.map(d => d.product_stage_spend);
+    const abandonedSpends = data.map(d => d.abandoned_stage_spend);
+    const noStageSpends = data.map(d => d.no_stage_spend);
 
     trendChart.value?.setOption({
       xAxis: { data: dates },
       series: [
-        { data: finishedCosts },
-        { data: trialCosts },
-        { data: unknownCosts }
+        { data: testingSpends },
+        { data: potentialSpends },
+        { data: productSpends },
+        { data: abandonedSpends },
+        { data: noStageSpends }
       ]
     });
-  } catch {
+
+    ElMessage.success(result.message || "查询成功");
+  } catch (error: any) {
+    console.error("拉取趋势数据失败:", error);
     // 使用模拟数据
-    const mockData = Array.from({ length: 30 }, (_, i) => {
+    const mockData: TrendDataItem[] = Array.from({ length: 30 }, (_, i) => {
       const date = new Date();
       date.setDate(date.getDate() - (29 - i));
       return {
         date: date.toISOString().split("T")[0],
-        finishedCost: Math.random() * 5000 + 3000, // 3000-8000
-        trialCost: Math.random() * 3000 + 1000, // 1000-4000
-        unknownCost: Math.random() * 1000 + 500 // 500-1500
+        testing_stage_spend: Math.random() * 2000 + 1000,
+        potential_stage_spend: Math.random() * 1500 + 800,
+        product_stage_spend: Math.random() * 5000 + 3000,
+        abandoned_stage_spend: Math.random() * 500 + 200,
+        no_stage_spend: Math.random() * 300 + 100
       };
     });
 
     const dates = mockData.map(d => d.date);
-    const finishedCosts = mockData.map(d => d.finishedCost);
-    const trialCosts = mockData.map(d => d.trialCost);
-    const unknownCosts = mockData.map(d => d.unknownCost);
+    const testingSpends = mockData.map(d => d.testing_stage_spend);
+    const potentialSpends = mockData.map(d => d.potential_stage_spend);
+    const productSpends = mockData.map(d => d.product_stage_spend);
+    const abandonedSpends = mockData.map(d => d.abandoned_stage_spend);
+    const noStageSpends = mockData.map(d => d.no_stage_spend);
 
     trendChart.value?.setOption({
       xAxis: { data: dates },
       series: [
-        { data: finishedCosts },
-        { data: trialCosts },
-        { data: unknownCosts }
+        { data: testingSpends },
+        { data: potentialSpends },
+        { data: productSpends },
+        { data: abandonedSpends },
+        { data: noStageSpends }
       ]
     });
 
     ElMessage.info("使用模拟数据展示（后端接口未就绪）");
   } finally {
     loader.close();
-    loading.value = false;
+    trendLoading.value = false;
   }
 }
 
@@ -200,98 +263,124 @@ async function fetchDailyData() {
     return;
   }
 
+  if (!selectedShop.value) {
+    ElMessage.warning("请先选择店铺");
+    return;
+  }
+
   loading.value = true;
   const loader = ElLoading.service({ text: "加载数据..." });
 
   try {
-    const res = await fetch(`${API.DAILY}?date=${selectedDate.value}`);
+    // 将店铺ID和日期作为查询参数传递
+    const url = new URL(API.RATIO, window.location.origin);
+    url.searchParams.append("date", selectedDate.value);
+    url.searchParams.append("shop", selectedShop.value);
+    const res = await fetch(url.toString());
     if (!res.ok) throw new Error("获取数据失败");
-    const data: DailyData = await res.json();
-    dailyData.value = data;
+    const result = await res.json();
+
+    if (!result.success || !result.data) {
+      throw new Error(result.error || result.message || "查询失败");
+    }
+
+    const data: RatioData = result.data;
+    ratioData.value = data;
 
     // 更新饼图
-    const total = data.finishedCost + data.trialCost + data.unknownCost;
+    const stages = data.stages;
+    const total =
+      stages.testing_stage.spend +
+      stages.potential_stage.spend +
+      stages.product_stage.spend +
+      stages.abandoned_stage.spend +
+      stages.no_stage.spend;
+
     pieChart.value?.setOption({
       series: [
         {
           data: [
             {
-              name: "成品广告",
-              value: data.finishedCost,
-              itemStyle: { color: COLORS.finished }
+              name: "测款阶段",
+              value: stages.testing_stage.spend,
+              itemStyle: { color: COLORS.testing }
             },
             {
-              name: "测款广告",
-              value: data.trialCost,
-              itemStyle: { color: COLORS.trial }
+              name: "潜力阶段",
+              value: stages.potential_stage.spend,
+              itemStyle: { color: COLORS.potential }
             },
             {
-              name: "未分类广告",
-              value: data.unknownCost,
-              itemStyle: { color: COLORS.unknown }
+              name: "成品阶段",
+              value: stages.product_stage.spend,
+              itemStyle: { color: COLORS.product }
+            },
+            {
+              name: "放弃阶段",
+              value: stages.abandoned_stage.spend,
+              itemStyle: { color: COLORS.abandoned }
+            },
+            {
+              name: "无阶段",
+              value: stages.no_stage.spend,
+              itemStyle: { color: COLORS.noStage }
             }
           ]
         }
       ]
     });
-  } catch {
+
+    ElMessage.success(result.message || "查询成功");
+  } catch (error: any) {
+    console.error("拉取占比数据失败:", error);
     // 使用模拟数据
-    const mockData: DailyData = {
+    const mockData: RatioData = {
       date: selectedDate.value,
-      finishedCost: 5678.9,
-      trialCost: 2345.67,
-      unknownCost: 890.12,
-      finishedIds: [
-        "SKU001234",
-        "SKU005678",
-        "SKU009012",
-        "SKU003456",
-        "SKU007890",
-        "SKU001122",
-        "SKU334455",
-        "SKU667788",
-        "SKU990011"
-      ],
-      trialIds: [
-        "SKU112233",
-        "SKU445566",
-        "SKU778899",
-        "SKU123456",
-        "SKU789012",
-        "SKU345678"
-      ],
-      unknownIds: [
-        "SKU998877",
-        "SKU665544",
-        "SKU332211",
-        "SKU102938",
-        "SKU475869"
-      ]
+      stages: {
+        testing_stage: { spend: 2345.67 },
+        potential_stage: { spend: 1800.5 },
+        product_stage: {
+          spend: 5678.9,
+          sales_amount: 15000,
+          roi: 2.64
+        },
+        abandoned_stage: { spend: 450.2 },
+        no_stage: { spend: 120.3 }
+      }
     };
 
-    dailyData.value = mockData;
+    ratioData.value = mockData;
 
     // 更新饼图
-    const total =
-      mockData.finishedCost + mockData.trialCost + mockData.unknownCost;
+    const stages = mockData.stages;
     pieChart.value?.setOption({
       series: [
         {
           data: [
             {
-              name: "成品广告",
-              value: mockData.finishedCost,
-              itemStyle: { color: COLORS.finished }
+              name: "测款阶段",
+              value: stages.testing_stage.spend,
+              itemStyle: { color: COLORS.testing }
             },
             {
-              name: "测款广告",
-              value: mockData.trialCost,
-              itemStyle: { color: COLORS.trial }
+              name: "潜力阶段",
+              value: stages.potential_stage.spend,
+              itemStyle: { color: COLORS.potential }
             },
             {
-              name: "未分类广告",
-              value: mockData.unknownCost,
-              itemStyle: { color: COLORS.unknown }
+              name: "成品阶段",
+              value: stages.product_stage.spend,
+              itemStyle: { color: COLORS.product }
+            },
+            {
+              name: "放弃阶段",
+              value: stages.abandoned_stage.spend,
+              itemStyle: { color: COLORS.abandoned }
+            },
+            {
+              name: "无阶段",
+              value: stages.no_stage.spend,
+              itemStyle: { color: COLORS.noStage }
             }
           ]
         }
@@ -338,11 +427,34 @@ onUnmounted(() => {
 
 <template>
   <div class="ad-analysis-page">
+    <!-- 店铺选择区域 -->
+    <div class="shop-selector">
+      <el-select
+        v-model="selectedShop"
+        placeholder="选择店铺"
+        style="width: 200px"
+      >
+        <el-option
+          v-for="item in shopOptions"
+          :key="item.value"
+          :label="item.label"
+          :value="item.value"
+        />
+      </el-select>
+    </div>
+
     <!-- 趋势分析部分 -->
     <el-card class="trend-card">
       <template #header>
         <div class="card-header">
           <span class="title">广告占比趋势（近30天）</span>
+          <el-button
+            type="primary"
+            :loading="trendLoading"
+            icon="el-icon-refresh"
+            @click="updateTrendData"
+            >拉取数据</el-button
+          >
         </div>
       </template>
       <div ref="trendChartRef" class="trend-chart" />
@@ -372,27 +484,41 @@ onUnmounted(() => {
         </div>
       </template>
 
-      <div v-if="dailyData" class="daily-content">
+      <div v-if="ratioData" class="daily-content">
         <!-- 数据概览 -->
         <div class="overview-section">
           <div class="cost-stats">
             <div class="stat-item">
               <h4>一、广告消耗分布</h4>
               <div class="stat-grid">
-                <div class="stat-box finished">
-                  <div class="label">成品广告消耗</div>
+                <div class="stat-box testing">
+                  <div class="label">测款阶段消耗</div>
                   <div class="value">
-                    ¥{{ dailyData.finishedCost.toFixed(2) }}
+                    ¥{{ ratioData.stages.testing_stage.spend.toFixed(2) }}
                   </div>
                 </div>
-                <div class="stat-box trial">
-                  <div class="label">测款广告消耗</div>
-                  <div class="value">¥{{ dailyData.trialCost.toFixed(2) }}</div>
-                </div>
-                <div class="stat-box unknown">
-                  <div class="label">未分类广告消耗</div>
+                <div class="stat-box potential">
+                  <div class="label">潜力阶段消耗</div>
                   <div class="value">
-                    ¥{{ dailyData.unknownCost.toFixed(2) }}
+                    ¥{{ ratioData.stages.potential_stage.spend.toFixed(2) }}
+                  </div>
+                </div>
+                <div class="stat-box product">
+                  <div class="label">成品阶段消耗</div>
+                  <div class="value">
+                    ¥{{ ratioData.stages.product_stage.spend.toFixed(2) }}
+                  </div>
+                </div>
+                <div class="stat-box abandoned">
+                  <div class="label">放弃阶段消耗</div>
+                  <div class="value">
+                    ¥{{ ratioData.stages.abandoned_stage.spend.toFixed(2) }}
+                  </div>
+                </div>
+                <div class="stat-box no-stage">
+                  <div class="label">无阶段消耗</div>
+                  <div class="value">
+                    ¥{{ ratioData.stages.no_stage.spend.toFixed(2) }}
                   </div>
                 </div>
               </div>
@@ -401,50 +527,26 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <!-- 商品ID列表 -->
-        <div class="products-section">
-          <h4>二、广告商品明细</h4>
-          <div class="lists-container">
-            <div class="id-list finished">
-              <div class="list-header">成品广告商品</div>
-              <div class="id-chips">
-                <span
-                  v-for="id in dailyData.finishedIds"
-                  :key="id"
-                  class="id-chip"
-                  title="点击复制"
-                  @click="copyToClipboard(id)"
-                >
-                  {{ id }}
-                </span>
+        <!-- 成品阶段详细信息 -->
+        <div class="product-detail-section">
+          <h4>二、成品阶段详细信息</h4>
+          <div class="product-detail-grid">
+            <div class="detail-box">
+              <div class="label">广告花费</div>
+              <div class="value">
+                ¥{{ ratioData.stages.product_stage.spend.toFixed(2) }}
               </div>
             </div>
-            <div class="id-list trial">
-              <div class="list-header">测款广告商品</div>
-              <div class="id-chips">
-                <span
-                  v-for="id in dailyData.trialIds"
-                  :key="id"
-                  class="id-chip"
-                  title="点击复制"
-                  @click="copyToClipboard(id)"
-                >
-                  {{ id }}
-                </span>
+            <div class="detail-box">
+              <div class="label">销售额</div>
+              <div class="value">
+                ¥{{ ratioData.stages.product_stage.sales_amount.toFixed(2) }}
               </div>
             </div>
-            <div class="id-list unknown">
-              <div class="list-header">未分类广告商品</div>
-              <div class="id-chips">
-                <span
-                  v-for="id in dailyData.unknownIds"
-                  :key="id"
-                  class="id-chip"
-                  title="点击复制"
-                  @click="copyToClipboard(id)"
-                >
-                  {{ id }}
-                </span>
+            <div class="detail-box">
+              <div class="label">ROI</div>
+              <div class="value roi-value">
+                {{ ratioData.stages.product_stage.roi.toFixed(2) }}
               </div>
             </div>
           </div>
@@ -461,6 +563,12 @@ onUnmounted(() => {
   padding: 20px;
   background: #f7f9fc;
   min-height: calc(100vh - 80px);
+}
+
+.shop-selector {
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: flex-start;
 }
 
 .trend-card,
@@ -511,7 +619,7 @@ onUnmounted(() => {
 
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 16px;
   margin-top: 16px;
 }
@@ -522,13 +630,19 @@ onUnmounted(() => {
   background: #f8f9fa;
 }
 
-.stat-box.finished {
-  border-left: 4px solid #67c23a;
-}
-.stat-box.trial {
+.stat-box.testing {
   border-left: 4px solid #409eff;
 }
-.stat-box.unknown {
+.stat-box.potential {
+  border-left: 4px solid #e6a23c;
+}
+.stat-box.product {
+  border-left: 4px solid #67c23a;
+}
+.stat-box.abandoned {
+  border-left: 4px solid #f56c6c;
+}
+.stat-box.no-stage {
   border-left: 4px solid #909399;
 }
 
@@ -549,49 +663,41 @@ onUnmounted(() => {
   height: 320px;
 }
 
-.products-section {
+.product-detail-section {
   margin-top: 24px;
 }
 
-.lists-container {
+.product-detail-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 20px;
   margin-top: 16px;
 }
 
-.id-list {
-  background: #f8f9fa;
+.detail-box {
+  background: linear-gradient(135deg, #f6f8fb 0%, #ffffff 100%);
   border-radius: 8px;
-  padding: 16px;
+  padding: 20px;
+  border: 1px solid #e4e7ed;
+  text-align: center;
 }
 
-.list-header {
+.detail-box .label {
   font-size: 14px;
-  font-weight: 500;
   color: #606266;
   margin-bottom: 12px;
+  font-weight: 500;
 }
 
-.id-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+.detail-box .value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #303133;
 }
 
-.id-chip {
-  padding: 4px 12px;
-  background: #fff;
-  border-radius: 4px;
-  font-size: 13px;
-  cursor: pointer;
-  user-select: all;
-  transition: all 0.2s;
-}
-
-.id-chip:hover {
-  background: #ecf5ff;
-  color: #409eff;
+.detail-box .roi-value {
+  color: #67c23a;
+  font-size: 28px;
 }
 
 .empty-state {
@@ -611,7 +717,11 @@ onUnmounted(() => {
     height: 280px;
   }
 
-  .lists-container {
+  .stat-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .product-detail-grid {
     grid-template-columns: 1fr;
   }
 }

@@ -5,13 +5,24 @@ import type { LoadingInstance } from "element-plus";
 
 defineOptions({ name: "TrialLinkMonitor" });
 
+// 后端返回的商品数据结构
+type BackendProduct = {
+  product_id: string;
+  product_name: string;
+  product_image: string | null;
+  total_clicks: number;
+  total_visitors: number;
+  total_orders: number;
+};
+
+// 前端使用的商品数据
 type Product = {
-  id: string;
-  name: string;
-  image?: string | null;
-  cumulativeClicks: number;
-  ordersCount: number;
-  cumulativeVisitors: number;
+  product_id: string;
+  product_name: string;
+  product_image: string | null;
+  total_clicks: number;
+  total_visitors: number;
+  total_orders: number;
 };
 
 const products = ref<Product[]>([]);
@@ -30,60 +41,72 @@ const shopOptions = [
   }
 ];
 
-const API_LIST = "/api/trial/link/monitor/list";
+const API_LIST = "/api/products/testing-monitor";
 
 function showLoader(text = "加载中..."): LoadingInstance {
   return ElLoading.service({ lock: true, text, background: "rgba(0,0,0,0.2)" });
 }
 
-function rowClass(p: Product) {
-  if (p.cumulativeVisitors >= 100 || p.ordersCount >= 5)
-    return "card-alert-red";
-  if (p.cumulativeVisitors >= 50) return "card-alert-green";
-  return "card-normal";
+/**
+ * 数字格式化（添加千分位）
+ */
+function formatNumber(num: number): string {
+  return num.toLocaleString("zh-CN");
 }
 
+/**
+ * 根据数据判断卡片样式类
+ */
+function rowClass(p: Product) {
+  if (p.total_visitors >= 100 || p.total_orders >= 5) return "card-alert-red";
+  if (p.total_visitors >= 50) return "card-alert-green";
+  return "";
+}
+
+/**
+ * 加载模拟数据（用于测试）
+ */
 function loadMockData() {
   products.value = [
     {
-      id: "SKU-T1001",
-      name: "测款 — 轻便跑鞋",
-      image: "https://via.placeholder.com/160?text=T1001",
-      cumulativeClicks: 1240,
-      ordersCount: 2,
-      cumulativeVisitors: 60
+      product_id: "SKU-T1001",
+      product_name: "测款 — 轻便跑鞋",
+      product_image: "https://via.placeholder.com/160?text=T1001",
+      total_clicks: 1240,
+      total_orders: 2,
+      total_visitors: 60
     },
     {
-      id: "SKU-T1002",
-      name: "测款 — 多功能杯",
-      image: "https://via.placeholder.com/160?text=T1002",
-      cumulativeClicks: 540,
-      ordersCount: 6,
-      cumulativeVisitors: 110
+      product_id: "SKU-T1002",
+      product_name: "测款 — 多功能杯",
+      product_image: "https://via.placeholder.com/160?text=T1002",
+      total_clicks: 540,
+      total_orders: 6,
+      total_visitors: 110
     },
     {
-      id: "SKU-T1003",
-      name: "测款 — 创意手机支架",
-      image: null,
-      cumulativeClicks: 230,
-      ordersCount: 0,
-      cumulativeVisitors: 45
+      product_id: "SKU-T1003",
+      product_name: "测款 — 创意手机支架",
+      product_image: null,
+      total_clicks: 230,
+      total_orders: 0,
+      total_visitors: 45
     },
     {
-      id: "SKU-T1004",
-      name: "测款 — 智能照明灯",
-      image: "https://via.placeholder.com/160?text=T1004",
-      cumulativeClicks: 980,
-      ordersCount: 4,
-      cumulativeVisitors: 98
+      product_id: "SKU-T1004",
+      product_name: "测款 — 智能照明灯",
+      product_image: "https://via.placeholder.com/160?text=T1004",
+      total_clicks: 980,
+      total_orders: 4,
+      total_visitors: 98
     },
     {
-      id: "SKU-T1005",
-      name: "测款 — 多彩背包",
-      image: "https://via.placeholder.com/160?text=T1005",
-      cumulativeClicks: 320,
-      ordersCount: 1,
-      cumulativeVisitors: 52
+      product_id: "SKU-T1005",
+      product_name: "测款 — 多彩背包",
+      product_image: "https://via.placeholder.com/160?text=T1005",
+      total_clicks: 320,
+      total_orders: 1,
+      total_visitors: 52
     }
   ];
 }
@@ -101,23 +124,59 @@ async function fetchData() {
     const url = new URL(API_LIST, window.location.origin);
     url.searchParams.append("shop", selectedShop.value);
     const res = await fetch(url.toString());
-    if (!res.ok) throw new Error("fetch failed");
-    const data = await res.json();
-    products.value = data || [];
-  } catch {
-    loadMockData();
-    ElMessage.info("使用本地示例数据（后端不可用）");
+    if (!res.ok) {
+      throw new Error(`HTTP error! status: ${res.status}`);
+    }
+    const result = await res.json();
+
+    if (result.success && result.data) {
+      // 直接使用后端返回的数据结构
+      products.value = result.data as Product[];
+      if (products.value.length === 0) {
+        ElMessage.info("当前店铺暂无测款商品");
+      } else {
+        ElMessage.success(
+          result.message || `查询成功，共 ${products.value.length} 条数据`
+        );
+      }
+    } else {
+      throw new Error(result.error || result.message || "查询失败");
+    }
+  } catch (error: any) {
+    console.error("拉取数据失败:", error);
+    // 如果是网络错误，使用模拟数据
+    if (
+      error?.message?.includes("HTTP error") ||
+      error?.message?.includes("fetch")
+    ) {
+      loadMockData();
+      ElMessage.info("使用本地示例数据（后端不可用）");
+    } else {
+      ElMessage.error(error?.message || "网络连接失败，请检查网络后重试");
+      products.value = [];
+    }
   } finally {
     loader.close();
     loading.value = false;
   }
 }
 
+/** 处理图片加载失败 */
+function handleImageError(e: Event) {
+  const img = e.target as HTMLImageElement;
+  img.style.display = "none";
+  // 创建或显示占位符
+  const placeholder = document.createElement("div");
+  placeholder.className = "thumb placeholder";
+  placeholder.textContent = "无图";
+  img.parentElement?.appendChild(placeholder);
+}
+
 /** 复制 id */
-function copyId(text: string) {
+async function copyId(text: string) {
   try {
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(text);
     } else {
       const ta = document.createElement("textarea");
       ta.value = text;
@@ -126,15 +185,16 @@ function copyId(text: string) {
       document.execCommand("copy");
       document.body.removeChild(ta);
     }
-    ElMessage.success("已复制");
+    ElMessage.success("已复制到剪贴板");
   } catch {
     ElMessage.error("复制失败");
   }
 }
 
-onMounted(() => {
-  fetchData();
-});
+// 页面加载时不自动拉取数据，需要用户手动选择店铺后点击查询
+// onMounted(() => {
+//   fetchData();
+// });
 </script>
 
 <template>
@@ -161,31 +221,45 @@ onMounted(() => {
       >
     </div>
 
-    <div class="grid">
+    <!-- 空数据提示 -->
+    <el-empty
+      v-if="!loading && products.length === 0 && selectedShop"
+      description="当前店铺暂无测款商品"
+      :image-size="120"
+    />
+
+    <!-- 数据展示 -->
+    <div v-else class="grid">
       <div
         v-for="p in products"
-        :key="p.id"
+        :key="p.product_id"
         class="prod-card"
         :class="rowClass(p)"
       >
         <div class="card-top">
           <div class="img-area">
-            <img v-if="p.image" :src="p.image" alt="主图" class="thumb" />
-            <div v-else class="thumb placeholder">无图</div>
+            <img
+              v-if="p.product_image"
+              :src="p.product_image"
+              alt="主图"
+              class="thumb"
+              @error="handleImageError"
+            />
+            <div v-if="!p.product_image" class="thumb placeholder">无图</div>
           </div>
 
           <div class="info-area">
-            <div class="id" title="点击复制ID" @click="copyId(p.id)">
-              {{ p.id }}
+            <div class="id" title="点击复制ID" @click="copyId(p.product_id)">
+              {{ p.product_id }}
             </div>
-            <div class="name" :title="p.name">{{ p.name }}</div>
+            <div class="name" :title="p.product_name">{{ p.product_name }}</div>
             <div class="tags">
               <el-tag
-                v-if="p.cumulativeVisitors >= 100 || p.ordersCount >= 5"
+                v-if="p.total_visitors >= 100 || p.total_orders >= 5"
                 type="danger"
                 >需处理</el-tag
               >
-              <el-tag v-else-if="p.cumulativeVisitors >= 50" type="success"
+              <el-tag v-else-if="p.total_visitors >= 50" type="success"
                 >关注中</el-tag
               >
             </div>
@@ -195,21 +269,21 @@ onMounted(() => {
         <div class="card-metrics">
           <div class="metric">
             <div class="label">累计点击</div>
-            <div class="value">{{ p.cumulativeClicks }}</div>
+            <div class="value">{{ formatNumber(p.total_clicks) }}</div>
           </div>
           <div class="metric">
             <div class="label">出单数</div>
-            <div class="value">{{ p.ordersCount }}</div>
+            <div class="value">{{ formatNumber(p.total_orders) }}</div>
           </div>
           <div class="metric">
             <div class="label">累计访客</div>
-            <div class="value">{{ p.cumulativeVisitors }}</div>
+            <div class="value">{{ formatNumber(p.total_visitors) }}</div>
           </div>
         </div>
 
         <div class="card-foot">
           <div
-            v-if="p.cumulativeVisitors >= 100 || p.ordersCount >= 5"
+            v-if="p.total_visitors >= 100 || p.total_orders >= 5"
             class="hint"
           >
             及时更改该链接状态
@@ -311,6 +385,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0; /* 确保 flex 子元素可以收缩 */
 }
 .id {
   font-weight: 700;
@@ -326,6 +401,8 @@ onMounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 100%; /* 确保不超过父容器宽度 */
+  width: 100%; /* 占据父容器全部宽度 */
 }
 .tags {
   margin-top: 6px;
