@@ -71,9 +71,19 @@ export const getLogin = (data?: object) => {
   return http.request<UserResult>("post", "/api/auth/login", { data });
 };
 
+/** 检查登录状态 */
+export const checkAuth = () => {
+  return http.request<{ success: boolean; data?: any }>("get", "/api/auth/me");
+};
+
 /** 刷新`token` */
 export const refreshTokenApi = (data?: object) => {
-  return http.request<RefreshTokenResult>("post", "/refresh-token", { data });
+  return http.request<RefreshTokenResult>("post", "/api/refresh-token", { data });
+};
+
+/** 退出登录 */
+export const logoutApi = () => {
+  return http.request<{ success: boolean }>("post", "/api/auth/logout");
 };
 
 /** 账户设置-个人信息 */

@@ -59,8 +59,8 @@ const { title, getDropdownItemStyle, getDropdownItemClass } = useNav();
 const { locale, translationCh, translationEn } = useTranslationLang();
 
 const ruleForm = reactive({
-  username: "YANGYIWEI",
-  password: "Q8@xM2f#T9"
+  username: "",
+  password: ""
 });
 
 const onLogin = async (formEl: FormInstance | undefined) => {

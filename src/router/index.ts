@@ -37,6 +37,7 @@ import {
 //   multipleTabsKey
 // } from "@/utils/auth";
 import { addPathMatch } from "./utils";
+import { checkAuth } from "@/api/user";
 
 /** 自动导入全部静态路由，无需再手动引入！匹配 src/router/modules 目录（任何嵌套级别）中具有 .ts 扩展名的所有文件，除了 remaining.ts 文件
  * 如何匹配所有文件请看：https://github.com/mrmlnc/fast-glob#basic-syntax
@@ -161,38 +162,21 @@ router.beforeEach(async (to: ToRouteType, _from, next) => {
     return;
   }
 
-  // 6. 后台权限校验（伪代码）
-  // TODO: 待实现后台权限校验接口
-  // 接口说明：
-  // - 请求方式：GET/POST（根据实际接口定义）
-  // - 请求路径：/api/auth/check 或类似路径（根据实际接口定义）
-  // - 请求参数：{ path: to.fullPath } 或路由相关信息
-  // - 请求会自动携带 cookie，无需手动添加
-  // - 返回结果：{ success: boolean, hasPermission: boolean } 或类似结构
-  //
-  // 伪代码示例：
+  // 6. 检查登录状态（调用 /auth/me 接口）
   try {
-    // const response = await http.get('/api/auth/check', {
-    //   params: { path: to.fullPath }
-    // });
-    //
-    // if (!response.success || !response.hasPermission) {
-    //   // 无权限或未登录，跳转到登录页
-    //   next({ path: "/login" });
-    //   return;
-    // }
-
-    // 临时伪代码：暂时允许所有路由通过，等待接口实现
-    const hasPermission = true; // TODO: 替换为实际接口调用结果
-
-    if (!hasPermission) {
+    const response = await checkAuth();
+    // 如果接口返回成功，说明已登录，允许访问
+    if (response.success) {
+      // 已登录，继续路由导航
+    } else {
+      // 未登录，跳转到登录页
       next({ path: "/login" });
       return;
     }
   } catch (error) {
-    // 接口调用失败，跳转到登录页
-    // TODO: 根据实际错误类型处理（401未登录、403无权限等）
-    console.error(error);
+    // 接口调用失败（可能是401未登录），跳转到登录页
+    // 注意：401错误会在响应拦截器中处理，这里捕获其他错误
+    console.error("检查登录状态失败:", error);
     next({ path: "/login" });
     return;
   }

@@ -11,14 +11,14 @@ import type {
 } from "./types.d";
 import { stringify } from "qs";
 // import { getToken, formatToken } from "@/utils/auth";
-// import { useUserStoreHook } from "@/store/modules/user";
-// import { useNav } from "@/layout/hooks/useNav";
-// const { logout } = useNav();
+import { useUserStoreHook } from "@/store/modules/user";
 
 // 相关配置请参考：www.axios-js.com/zh-cn/docs/#axios-request-config-1
 const defaultConfig: AxiosRequestConfig = {
   // 请求超时时间
   timeout: 10000,
+  // 所有请求自动携带 Cookie（用于基于 Cookie 的 token 鉴权）
+  withCredentials: true,
   headers: {
     Accept: "application/json, text/plain, */*",
     "Content-Type": "application/json",
@@ -97,10 +97,14 @@ class PureHttp {
         const $error = error;
         $error.isCancelRequest = Axios.isCancel($error);
 
-        // ✅ 新增：如果后端返回401 → 未登录/登录失效
+        // 如果后端返回401 → 未登录/登录失效，自动跳转到登录页
         if ($error?.response?.status === 401) {
-          // 登出
-          // logout();
+          // 排除登录接口和检查登录状态的接口，避免循环跳转
+          const url = $error.config?.url || "";
+          if (!url.includes("/auth/login") && !url.includes("/auth/me")) {
+            // 调用 store 的 logOut 方法，它会处理路由跳转
+            useUserStoreHook().logOut();
+          }
         }
 
         return Promise.reject($error);

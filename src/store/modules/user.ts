@@ -11,10 +11,12 @@ import {
   type UserResult,
   type RefreshTokenResult,
   getLogin,
-  refreshTokenApi
+  refreshTokenApi,
+  logoutApi
 } from "@/api/user";
 import { useMultiTagsStoreHook } from "./multiTags";
 import { type DataInfo, setToken, removeToken, userKey } from "@/utils/auth";
+import Cookies from "js-cookie";
 
 export const useUserStore = defineStore("pure-user", {
   state: (): userType => ({
@@ -74,11 +76,30 @@ export const useUserStore = defineStore("pure-user", {
           });
       });
     },
-    /** 前端登出（不调用接口） */
-    logOut() {
-      this.username = "";
-      resetRouter();
-      router.push("/login");
+    /** 前端登出 */
+    async logOut() {
+      try {
+        // 调用后端退出登录接口，清除后端的 auth_token Cookie（特别是 HTTP-only Cookie）
+        // 如果后端没有退出登录接口，这个调用会失败，但不影响前端清除逻辑
+        await logoutApi();
+      } catch (error) {
+        // 如果后端没有退出登录接口或调用失败，继续执行前端清除逻辑
+        console.warn("退出登录接口调用失败，继续执行前端清除逻辑:", error);
+      } finally {
+        // 清除前端存储的 token 和用户信息
+        removeToken();
+        // 尝试清除后端设置的 auth_token Cookie（如果 Cookie 不是 HTTP-only，可以清除）
+        // 注意：如果 auth_token 是 HTTP-only Cookie，前端无法直接清除，需要通过后端接口清除
+        Cookies.remove("auth_token");
+        // 清空用户信息
+        this.username = "";
+        this.avatar = "";
+        this.nickname = "";
+        // 重置路由
+        resetRouter();
+        // 跳转到登录页
+        router.push("/login");
+      }
     }
   }
 });
