@@ -7,7 +7,8 @@ export default {
   meta: {
     title: $t("menus.pureMenus"),
     icon: "ep/histogram",
-    rank: nested
+    rank: nested,
+    showLink: false
   },
   children: [
     {

@@ -7,7 +7,8 @@ export default {
   meta: {
     icon: "ri/ubuntu-fill",
     title: $t("menus.pureAble"),
-    rank: able
+    rank: able,
+    showLink: false
   },
   children: [
     {

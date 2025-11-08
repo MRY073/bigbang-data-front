@@ -4,7 +4,7 @@ export default {
   path: "/trialLinkMonitor",
   redirect: "/trialLinkMonitor/index",
   meta: {
-    icon: "ri-links-line",
+    icon: "ri/links-line",
     title: "测款链接监控",
     rank: trialLinkMonitor
   },

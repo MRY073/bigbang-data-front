@@ -11,12 +11,15 @@ import EpMonitor from "~icons/ep/monitor?raw";
 import EpLollipop from "~icons/ep/lollipop?raw";
 import EpHistogram from "~icons/ep/histogram?raw";
 import EpHomeFilled from "~icons/ep/home-filled?raw";
+import EpDataAnalysis from "~icons/ep/data-analysis?raw";
 
 // https://icon-sets.iconify.design/ri/?keyword=ri
 import RiMindMap from "~icons/ri/mind-map?raw";
 import RiAdminFill from "~icons/ri/admin-fill?raw";
 import RiTableLine from "~icons/ri/table-line?raw";
 import RiLinksFill from "~icons/ri/links-fill?raw";
+import RiLinksLine from "~icons/ri/links-line?raw";
+import RiUpload2Line from "~icons/ri/upload-2-line?raw";
 import RiAdminLine from "~icons/ri/admin-line?raw";
 import RiListCheck from "~icons/ri/list-check?raw";
 import RiSearchLine from "~icons/ri/search-line?raw";
@@ -51,11 +54,14 @@ const icons = [
   ["ep/lollipop", EpLollipop],
   ["ep/histogram", EpHistogram],
   ["ep/home-filled", EpHomeFilled],
+  ["ep/data-analysis", EpDataAnalysis],
   // Remix Icon: https://github.com/Remix-Design/RemixIcon
   ["ri/mind-map", RiMindMap],
   ["ri/admin-fill", RiAdminFill],
   ["ri/table-line", RiTableLine],
   ["ri/links-fill", RiLinksFill],
+  ["ri/links-line", RiLinksLine],
+  ["ri/upload-2-line", RiUpload2Line],
   ["ri/admin-line", RiAdminLine],
   ["ri/list-check", RiListCheck],
   ["ri/search-line", RiSearchLine],

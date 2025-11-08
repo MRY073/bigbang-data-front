@@ -5,11 +5,11 @@ export const routerArrays: Array<RouteConfigs> =
   VITE_HIDE_HOME === "false"
     ? [
         {
-          path: "/welcome",
-          name: "Welcome",
+          path: "/dataUpload/index",
+          name: "DataUpload",
           meta: {
-            title: "menus.pureHome",
-            icon: "ep/home-filled"
+            title: "数据上传",
+            icon: "ri/upload-2-line"
           }
         }
       ]
