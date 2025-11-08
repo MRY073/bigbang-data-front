@@ -10,7 +10,7 @@ type BackendProduct = {
   product_id: string;
   product_name: string;
   product_image: string | null;
-  total_clicks: number;
+  testing_start_date: string | null; // 测款日期开始
   total_visitors: number;
   total_orders: number;
 };
@@ -20,24 +20,24 @@ type Product = {
   product_id: string;
   product_name: string;
   product_image: string | null;
-  total_clicks: number;
+  testing_start_date: string | null; // 测款日期开始
   total_visitors: number;
   total_orders: number;
 };
 
 const products = ref<Product[]>([]);
 const loading = ref(false);
-const selectedShop = ref<string>("modernNest"); // 默认选择第一个店铺
+const selectedShop = ref<string>("1489850435"); // 默认选择第一个店铺
 
 // 店铺选项（与数据上传页面保持一致）
 const shopOptions = [
   {
     label: "Modern Nest|泰国",
-    value: "modernNest"
+    value: "1489850435"
   },
   {
     label: "shop07|泰国",
-    value: "shop07"
+    value: "1638595255"
   }
 ];
 
@@ -55,10 +55,57 @@ function formatNumber(num: number): string {
 }
 
 /**
+ * 格式化日期显示
+ */
+function formatDate(dateString: string | null): string {
+  if (!dateString) return "未设置";
+  try {
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  } catch {
+    return "日期格式错误";
+  }
+}
+
+/**
+ * 判断测款日期是否超过15天
+ */
+function isTestingDateOver15Days(dateString: string | null): boolean {
+  if (!dateString) return false;
+  try {
+    const testingDate = new Date(dateString);
+    const today = new Date();
+    // 重置时间到0点，只比较日期
+    today.setHours(0, 0, 0, 0);
+    testingDate.setHours(0, 0, 0, 0);
+    // 计算天数差
+    const diffTime = today.getTime() - testingDate.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays >= 15;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 判断是否需要显示警告（需要更改链接状态）
+ */
+function shouldShowAlert(p: Product): boolean {
+  return (
+    p.total_visitors >= 100 ||
+    p.total_orders >= 5 ||
+    isTestingDateOver15Days(p.testing_start_date)
+  );
+}
+
+/**
  * 根据数据判断卡片样式类
  */
 function rowClass(p: Product) {
-  if (p.total_visitors >= 100 || p.total_orders >= 5) return "card-alert-red";
+  if (shouldShowAlert(p)) return "card-alert-red";
   if (p.total_visitors >= 50) return "card-alert-green";
   return "";
 }
@@ -67,12 +114,20 @@ function rowClass(p: Product) {
  * 加载模拟数据（用于测试）
  */
 function loadMockData() {
+  const today = new Date();
+  const date20DaysAgo = new Date(today);
+  date20DaysAgo.setDate(today.getDate() - 20); // 20天前（超过15天）
+  const date10DaysAgo = new Date(today);
+  date10DaysAgo.setDate(today.getDate() - 10); // 10天前（未超过15天）
+  const date5DaysAgo = new Date(today);
+  date5DaysAgo.setDate(today.getDate() - 5); // 5天前
+
   products.value = [
     {
       product_id: "SKU-T1001",
       product_name: "测款 — 轻便跑鞋",
       product_image: "https://via.placeholder.com/160?text=T1001",
-      total_clicks: 1240,
+      testing_start_date: date20DaysAgo.toISOString().split("T")[0],
       total_orders: 2,
       total_visitors: 60
     },
@@ -80,7 +135,7 @@ function loadMockData() {
       product_id: "SKU-T1002",
       product_name: "测款 — 多功能杯",
       product_image: "https://via.placeholder.com/160?text=T1002",
-      total_clicks: 540,
+      testing_start_date: date10DaysAgo.toISOString().split("T")[0],
       total_orders: 6,
       total_visitors: 110
     },
@@ -88,7 +143,7 @@ function loadMockData() {
       product_id: "SKU-T1003",
       product_name: "测款 — 创意手机支架",
       product_image: null,
-      total_clicks: 230,
+      testing_start_date: date5DaysAgo.toISOString().split("T")[0],
       total_orders: 0,
       total_visitors: 45
     },
@@ -96,7 +151,7 @@ function loadMockData() {
       product_id: "SKU-T1004",
       product_name: "测款 — 智能照明灯",
       product_image: "https://via.placeholder.com/160?text=T1004",
-      total_clicks: 980,
+      testing_start_date: date20DaysAgo.toISOString().split("T")[0],
       total_orders: 4,
       total_visitors: 98
     },
@@ -104,7 +159,7 @@ function loadMockData() {
       product_id: "SKU-T1005",
       product_name: "测款 — 多彩背包",
       product_image: "https://via.placeholder.com/160?text=T1005",
-      total_clicks: 320,
+      testing_start_date: date10DaysAgo.toISOString().split("T")[0],
       total_orders: 1,
       total_visitors: 52
     }
@@ -120,9 +175,16 @@ async function fetchData() {
   loading.value = true;
   const loader = showLoader("拉取数据中...");
   try {
-    // 将店铺ID作为查询参数传递
+    // 将店铺ID和店铺名称作为查询参数传递
+    const shopOption = shopOptions.find(
+      opt => opt.value === selectedShop.value
+    );
+    if (!shopOption) {
+      throw new Error("店铺信息不存在");
+    }
     const url = new URL(API_LIST, window.location.origin);
-    url.searchParams.append("shop", selectedShop.value);
+    url.searchParams.append("shopID", selectedShop.value);
+    url.searchParams.append("shopName", shopOption.label);
     const res = await fetch(url.toString());
     if (!res.ok) {
       throw new Error(`HTTP error! status: ${res.status}`);
@@ -254,11 +316,7 @@ async function copyId(text: string) {
             </div>
             <div class="name" :title="p.product_name">{{ p.product_name }}</div>
             <div class="tags">
-              <el-tag
-                v-if="p.total_visitors >= 100 || p.total_orders >= 5"
-                type="danger"
-                >需处理</el-tag
-              >
+              <el-tag v-if="shouldShowAlert(p)" type="danger">需处理</el-tag>
               <el-tag v-else-if="p.total_visitors >= 50" type="success"
                 >关注中</el-tag
               >
@@ -268,8 +326,8 @@ async function copyId(text: string) {
 
         <div class="card-metrics">
           <div class="metric">
-            <div class="label">累计点击</div>
-            <div class="value">{{ formatNumber(p.total_clicks) }}</div>
+            <div class="label">测款日期开始</div>
+            <div class="value">{{ formatDate(p.testing_start_date) }}</div>
           </div>
           <div class="metric">
             <div class="label">出单数</div>
@@ -282,12 +340,7 @@ async function copyId(text: string) {
         </div>
 
         <div class="card-foot">
-          <div
-            v-if="p.total_visitors >= 100 || p.total_orders >= 5"
-            class="hint"
-          >
-            及时更改该链接状态
-          </div>
+          <div v-if="shouldShowAlert(p)" class="hint">及时更改该链接状态</div>
         </div>
       </div>
     </div>

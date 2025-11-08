@@ -28,7 +28,7 @@ const uploadRef = ref<UploadInstance>();
 // 表单数据
 const formData = ref({
   type: "ad", // 默认选择广告文件上传
-  shop: "modernNest" // 默认选择店铺
+  shop: "1489850435" // 默认选择店铺
 });
 
 // 上传文件列表
@@ -57,11 +57,11 @@ const uploadTypes = [
 const shopOptions = [
   {
     label: "Modern Nest|泰国",
-    value: "modernNest"
+    value: "1489850435"
   },
   {
     label: "shop07|泰国",
-    value: "shop07"
+    value: "1638595255"
   }
 ];
 
@@ -86,10 +86,10 @@ const beforeUpload: UploadProps["beforeUpload"] = file => {
     return true;
   }
 
-  // 其他类型最多上传10个文件
-  const isLt10 = fileList.value.length < 10;
-  if (!isLt10) {
-    ElMessage.error("最多只能上传10个文件!");
+  // 其他类型最多上传100个文件
+  const isLt100 = fileList.value.length < 100;
+  if (!isLt100) {
+    ElMessage.error("最多只能上传100个文件!");
     return false;
   }
   return true;
@@ -122,7 +122,11 @@ const handleUpload = async (formEl: FormInstance | undefined) => {
   const fd = new FormData();
   filesToSend.forEach((f, i) => fd.append(`files`, f));
   fd.append("type", formData.value.type); // 添加上传文件的类型（广告、商业分析、映射表）
-  fd.append("shop", formData.value.shop); // 添加店铺信息
+  const shopOption = shopOptions.find(opt => opt.value === formData.value.shop);
+  if (shopOption) {
+    fd.append("shopID", formData.value.shop); // 添加店铺ID
+    fd.append("shopName", shopOption.label); // 添加店铺名称
+  }
 
   // 设置上传状态
   uploading.value = true;
@@ -266,11 +270,11 @@ watch(
                 <el-icon class="summary-icon"><Folder /></el-icon>
                 <div class="summary-info">
                   <span class="summary-label">已选文件</span>
-                  <span class="summary-value">{{ fileList.length }} / 10</span>
+                  <span class="summary-value">{{ fileList.length }} / 100</span>
                 </div>
               </div>
               <el-progress
-                :percentage="(fileList.length / 10) * 100"
+                :percentage="(fileList.length / 100) * 100"
                 :stroke-width="8"
                 :show-text="false"
                 class="progress-bar"

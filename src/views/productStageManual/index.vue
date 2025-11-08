@@ -66,7 +66,7 @@ type FilterStageType = "all" | StageType;
 const products = ref<ProductRow[]>([]);
 const pageLoading = ref(false);
 const filterStage = ref<FilterStageType>("all");
-const selectedShop = ref<string>("modernNest"); // 默认选择第一个店铺
+const selectedShop = ref<string>("1489850435"); // 默认选择第一个店铺
 
 // 分页相关
 const currentPage = ref(1); // 当前页码
@@ -77,11 +77,11 @@ const pageSizes = [10, 20, 50, 100, 200]; // 每页数量选项
 const shopOptions = [
   {
     label: "Modern Nest|泰国",
-    value: "modernNest"
+    value: "1489850435"
   },
   {
     label: "shop07|泰国",
-    value: "shop07"
+    value: "1638595255"
   }
 ];
 
@@ -128,6 +128,83 @@ function dateTimeToIso(dateTimeString: string | null): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * 检查时间段是否重叠
+ * @param timeRange1 时间段1
+ * @param timeRange2 时间段2
+ * @returns 是否重叠
+ */
+function isTimeRangeOverlap(
+  timeRange1: { start_time: string | null; end_time: string | null },
+  timeRange2: { start_time: string | null; end_time: string | null }
+): boolean {
+  // 如果任一时间段为空，则不重叠
+  if (
+    !timeRange1.start_time ||
+    !timeRange1.end_time ||
+    !timeRange2.start_time ||
+    !timeRange2.end_time
+  ) {
+    return false;
+  }
+
+  try {
+    const start1 = dateTimeToIso(timeRange1.start_time);
+    const end1 = dateTimeToIso(timeRange1.end_time);
+    const start2 = dateTimeToIso(timeRange2.start_time);
+    const end2 = dateTimeToIso(timeRange2.end_time);
+
+    if (!start1 || !end1 || !start2 || !end2) {
+      return false;
+    }
+
+    const date1Start = new Date(start1);
+    const date1End = new Date(end1);
+    const date2Start = new Date(start2);
+    const date2End = new Date(end2);
+
+    // 检查是否重叠：时间段1的开始时间在时间段2内，或时间段1的结束时间在时间段2内，或时间段1完全包含时间段2
+    return (
+      (date1Start >= date2Start && date1Start <= date2End) ||
+      (date1End >= date2Start && date1End <= date2End) ||
+      (date1Start <= date2Start && date1End >= date2End)
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 校验所有阶段时间段是否重叠
+ * @param row 商品行数据
+ * @returns 返回重叠的阶段对，如果没有重叠则返回空数组
+ */
+function validateStageTimeRanges(
+  row: ProductRow
+): Array<[StageType, StageType]> {
+  const stages: StageType[] = ["testing", "potential", "product", "abandoned"];
+  const overlaps: Array<[StageType, StageType]> = [];
+
+  for (let i = 0; i < stages.length; i++) {
+    for (let j = i + 1; j < stages.length; j++) {
+      const stage1 = stages[i];
+      const stage2 = stages[j];
+      const timeRange1 = row[
+        `${stage1}_stage` as keyof ProductRow
+      ] as StageTimeRange;
+      const timeRange2 = row[
+        `${stage2}_stage` as keyof ProductRow
+      ] as StageTimeRange;
+
+      if (isTimeRangeOverlap(timeRange1, timeRange2)) {
+        overlaps.push([stage1, stage2]);
+      }
+    }
+  }
+
+  return overlaps;
 }
 
 /**
@@ -216,10 +293,17 @@ async function fetchData() {
   const loader = showLoader("拉取数据中...");
 
   try {
-    // 将店铺ID作为查询参数传递
+    // 将店铺ID和店铺名称作为查询参数传递
     debugger; // 4. 开始构建URL
+    const shopOption = shopOptions.find(
+      opt => opt.value === selectedShop.value
+    );
+    if (!shopOption) {
+      throw new Error("店铺信息不存在");
+    }
     const url = new URL(API_GET_PRODUCTS, window.location.origin);
-    url.searchParams.append("shop", selectedShop.value);
+    url.searchParams.append("shopID", selectedShop.value);
+    url.searchParams.append("shopName", shopOption.label);
     const requestUrl = url.toString();
     console.log("请求URL:", requestUrl);
     console.log("API_GET_PRODUCTS:", API_GET_PRODUCTS);
@@ -293,13 +377,53 @@ async function fetchData() {
   }
 }
 
-/** 更新单个商品的阶段时间段 */
-async function updateProductStage(
+/**
+ * 更新单个阶段的时间段（内部函数，用于并行保存）
+ */
+async function updateSingleStage(
   productId: string,
   stageType: StageType,
   startTime: string | null,
   endTime: string | null
-) {
+): Promise<void> {
+  const shopOption = shopOptions.find(opt => opt.value === selectedShop.value);
+  if (!shopOption) {
+    throw new Error("店铺信息不存在");
+  }
+
+  const startTimeIso = dateTimeToIso(startTime);
+  const endTimeIso = dateTimeToIso(endTime);
+
+  const response = await fetch(API_UPDATE_STAGE, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      product_id: productId,
+      shopID: selectedShop.value,
+      shopName: shopOption.label,
+      stage_type: stageType,
+      start_time: startTimeIso,
+      end_time: endTimeIso
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  const result = await response.json();
+
+  if (!result.success) {
+    throw new Error(result.error || result.message || "更新失败");
+  }
+}
+
+/**
+ * 保存商品的所有阶段
+ */
+async function saveProductStages(productId: string) {
   if (!selectedShop.value) {
     ElMessage.warning("请先选择店铺");
     return;
@@ -312,48 +436,57 @@ async function updateProductStage(
     return;
   }
 
-  // 设置保存状态
-  row.savingFlags[stageType] = true;
+  // 校验时间段是否重叠
+  const overlaps = validateStageTimeRanges(row);
+  if (overlaps.length > 0) {
+    const overlapNames = overlaps
+      .map(([s1, s2]) => `${stageTypeMap[s1]}和${stageTypeMap[s2]}`)
+      .join("、");
+    ElMessage.error(
+      `时间段重叠：${overlapNames}的时间段存在重叠，请检查后重试`
+    );
+    return;
+  }
+
+  // 设置所有阶段的保存状态
+  const allStages: StageType[] = [
+    "testing",
+    "potential",
+    "product",
+    "abandoned"
+  ];
+  allStages.forEach(stageType => {
+    row.savingFlags[stageType] = true;
+  });
 
   try {
-    // 转换时间格式
-    const startTimeIso = dateTimeToIso(startTime);
-    const endTimeIso = dateTimeToIso(endTime);
-
-    const response = await fetch(API_UPDATE_STAGE, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        product_id: productId,
-        shop: selectedShop.value,
-        stage_type: stageType,
-        start_time: startTimeIso,
-        end_time: endTimeIso
-      })
+    // 使用 Promise.all 并行保存所有4个阶段
+    const savePromises = allStages.map(stageType => {
+      const stage = row[
+        `${stageType}_stage` as keyof ProductRow
+      ] as StageTimeRange;
+      return updateSingleStage(
+        productId,
+        stageType,
+        stage.start_time,
+        stage.end_time
+      );
     });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
+    await Promise.all(savePromises);
 
-    const result = await response.json();
+    // 重新计算当前阶段
+    row.currentStage = computeCurrentStageForRow(row);
 
-    if (result.success) {
-      ElMessage.success(result.message || "更新成功");
-      // 重新计算当前阶段
-      row.currentStage = computeCurrentStageForRow(row);
-      // 可以选择重新拉取数据以确保数据同步
-      // fetchData();
-    } else {
-      throw new Error(result.error || result.message || "更新失败");
-    }
+    ElMessage.success("保存成功");
   } catch (error: any) {
-    console.error("更新阶段失败:", error);
-    ElMessage.error(error?.message || "网络连接失败，请检查网络后重试");
+    console.error("保存阶段失败:", error);
+    ElMessage.error(error?.message || "保存失败，请检查网络后重试");
   } finally {
-    row.savingFlags[stageType] = false;
+    // 清除所有保存状态
+    allStages.forEach(stageType => {
+      row.savingFlags[stageType] = false;
+    });
   }
 }
 
@@ -478,6 +611,7 @@ async function copyToClipboard(text: string) {
             ({ row }) =>
               row.currentStage === 'abandoned' ? 'row-abandoned' : ''
           "
+          :max-height="600"
         >
           <!-- 当前阶段 - 移到最前面 -->
           <el-table-column
@@ -563,10 +697,36 @@ async function copyToClipboard(text: string) {
             </template>
           </el-table-column>
 
+          <!-- 操作列 - 保存按钮 -->
+          <el-table-column
+            label="操作"
+            width="120"
+            align="center"
+            header-align="center"
+            fixed="left"
+          >
+            <template #default="{ row }">
+              <div class="save-actions">
+                <el-button
+                  type="primary"
+                  size="small"
+                  :loading="
+                    row.savingFlags.testing ||
+                    row.savingFlags.potential ||
+                    row.savingFlags.product ||
+                    row.savingFlags.abandoned
+                  "
+                  @click="saveProductStages(row.product_id)"
+                  >保存</el-button
+                >
+              </div>
+            </template>
+          </el-table-column>
+
           <!-- 测款阶段 -->
           <el-table-column
             label="测款阶段"
-            width="320"
+            width="280"
             align="center"
             header-align="center"
           >
@@ -592,20 +752,6 @@ async function copyToClipboard(text: string) {
                     style="width: 140px"
                   />
                 </div>
-                <el-button
-                  type="primary"
-                  size="small"
-                  :loading="row.savingFlags.testing"
-                  @click="
-                    updateProductStage(
-                      row.product_id,
-                      'testing',
-                      row.testing_stage.start_time,
-                      row.testing_stage.end_time
-                    )
-                  "
-                  >保存</el-button
-                >
               </div>
             </template>
           </el-table-column>
@@ -613,7 +759,7 @@ async function copyToClipboard(text: string) {
           <!-- 潜力阶段 -->
           <el-table-column
             label="潜力阶段"
-            width="320"
+            width="280"
             align="center"
             header-align="center"
           >
@@ -639,20 +785,6 @@ async function copyToClipboard(text: string) {
                     style="width: 140px"
                   />
                 </div>
-                <el-button
-                  type="primary"
-                  size="small"
-                  :loading="row.savingFlags.potential"
-                  @click="
-                    updateProductStage(
-                      row.product_id,
-                      'potential',
-                      row.potential_stage.start_time,
-                      row.potential_stage.end_time
-                    )
-                  "
-                  >保存</el-button
-                >
               </div>
             </template>
           </el-table-column>
@@ -660,7 +792,7 @@ async function copyToClipboard(text: string) {
           <!-- 成品阶段 -->
           <el-table-column
             label="成品阶段"
-            width="320"
+            width="280"
             align="center"
             header-align="center"
           >
@@ -686,20 +818,6 @@ async function copyToClipboard(text: string) {
                     style="width: 140px"
                   />
                 </div>
-                <el-button
-                  type="primary"
-                  size="small"
-                  :loading="row.savingFlags.product"
-                  @click="
-                    updateProductStage(
-                      row.product_id,
-                      'product',
-                      row.product_stage.start_time,
-                      row.product_stage.end_time
-                    )
-                  "
-                  >保存</el-button
-                >
               </div>
             </template>
           </el-table-column>
@@ -707,7 +825,7 @@ async function copyToClipboard(text: string) {
           <!-- 放弃阶段 -->
           <el-table-column
             label="放弃阶段"
-            width="320"
+            width="280"
             align="center"
             header-align="center"
           >
@@ -733,20 +851,6 @@ async function copyToClipboard(text: string) {
                     style="width: 140px"
                   />
                 </div>
-                <el-button
-                  type="primary"
-                  size="small"
-                  :loading="row.savingFlags.abandoned"
-                  @click="
-                    updateProductStage(
-                      row.product_id,
-                      'abandoned',
-                      row.abandoned_stage.start_time,
-                      row.abandoned_stage.end_time
-                    )
-                  "
-                  >保存</el-button
-                >
               </div>
             </template>
           </el-table-column>
@@ -833,7 +937,7 @@ async function copyToClipboard(text: string) {
 /* 表格占满父元素宽度 */
 .stage-card :deep(.el-table) {
   width: 100%;
-  min-width: 1400px; /* 设置最小宽度，确保所有列都能显示 */
+  min-width: 1440px; /* 设置最小宽度，确保所有列都能显示 */
 }
 
 /* 表格单元格内容水平垂直居中 */
@@ -880,6 +984,18 @@ async function copyToClipboard(text: string) {
   flex-direction: column;
   align-items: center;
   gap: 4px;
+}
+
+/* 保存操作按钮组 */
+.save-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.save-actions .el-button {
+  width: 80px;
 }
 
 /* 当前阶段基础样式 */

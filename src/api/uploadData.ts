@@ -26,7 +26,8 @@ export type UploadResponse = {
  *
  * // 添加其他字段
  * fd.append('type', 'ad');
- * fd.append('shop', 'modernNest');
+ * fd.append('shopID', '1489850435');
+ * fd.append('shopName', 'Modern Nest|泰国');
  *
  * // 调用接口
  * const result = await uploadData(fd);

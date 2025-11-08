@@ -34,7 +34,7 @@ type RatioData = {
 
 // 状态
 const selectedDate = ref<string>(new Date().toISOString().split("T")[0]);
-const selectedShop = ref<string>("modernNest"); // 默认选择第一个店铺
+const selectedShop = ref<string>("1489850435"); // 默认选择第一个店铺
 const trendChart = ref<echarts.ECharts>();
 const pieChart = ref<echarts.ECharts>();
 const ratioData = ref<RatioData>();
@@ -45,11 +45,11 @@ const trendLoading = ref(false); // 趋势图加载状态
 const shopOptions = [
   {
     label: "Modern Nest|泰国",
-    value: "modernNest"
+    value: "1489850435"
   },
   {
     label: "shop07|泰国",
-    value: "shop07"
+    value: "1638595255"
   }
 ];
 
@@ -181,9 +181,16 @@ async function updateTrendData() {
   const loader = ElLoading.service({ text: "加载趋势数据..." });
 
   try {
-    // 将店铺ID作为查询参数传递
+    // 将店铺ID和店铺名称作为查询参数传递
+    const shopOption = shopOptions.find(
+      opt => opt.value === selectedShop.value
+    );
+    if (!shopOption) {
+      throw new Error("店铺信息不存在");
+    }
     const url = new URL(API.TREND, window.location.origin);
-    url.searchParams.append("shop", selectedShop.value);
+    url.searchParams.append("shopID", selectedShop.value);
+    url.searchParams.append("shopName", shopOption.label);
     const res = await fetch(url.toString());
     if (!res.ok) throw new Error("获取趋势数据失败");
     const result = await res.json();
@@ -272,10 +279,17 @@ async function fetchDailyData() {
   const loader = ElLoading.service({ text: "加载数据..." });
 
   try {
-    // 将店铺ID和日期作为查询参数传递
+    // 将店铺ID、店铺名称和日期作为查询参数传递
+    const shopOption = shopOptions.find(
+      opt => opt.value === selectedShop.value
+    );
+    if (!shopOption) {
+      throw new Error("店铺信息不存在");
+    }
     const url = new URL(API.RATIO, window.location.origin);
     url.searchParams.append("date", selectedDate.value);
-    url.searchParams.append("shop", selectedShop.value);
+    url.searchParams.append("shopID", selectedShop.value);
+    url.searchParams.append("shopName", shopOption.label);
     const res = await fetch(url.toString());
     if (!res.ok) throw new Error("获取数据失败");
     const result = await res.json();
