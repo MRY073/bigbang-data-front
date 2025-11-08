@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from "vue";
-import { ElMessage, ElLoading } from "element-plus";
+import { ElMessage, ElLoading, ElDialog, ElIcon } from "element-plus";
+import { Picture } from "@element-plus/icons-vue";
 import * as echarts from "echarts";
 import type { EChartsOption } from "echarts";
 
@@ -27,12 +28,32 @@ type TrendData = {
   roiData: number[]; // 成品阶段 ROI 序列
 };
 
+// 商品信息类型
+type ProductItem = {
+  productId: string; // 商品ID
+  title: string; // 商品标题
+  mainImage: string; // 主图URL
+  adSpend: number; // 广告花费
+  adSales: number; // 广告销售额
+  roi: number; // ROI
+};
+
+// 阶段类型映射
+type StageKey = "product" | "testing" | "potential" | "abandoned" | "other";
+
 // 状态
 const selectedDate = ref<string>(new Date().toISOString().split("T")[0]);
 const selectedShop = ref<string>("1489850435"); // 默认选择第一个店铺
 const dailyData = ref<DailyData | null>(null);
 const trendData = ref<TrendData | null>(null);
 const loading = ref(false);
+
+// 商品列表弹窗状态
+const dialogVisible = ref(false);
+const dialogTitle = ref("");
+const productList = ref<ProductItem[]>([]);
+const productListLoading = ref(false);
+const currentStage = ref<StageKey | null>(null);
 
 // 店铺选项（与其他页面保持一致）
 const shopOptions = [
@@ -68,7 +89,26 @@ const COLORS = {
 // API 端点
 const API = {
   DAILY: "/api/ad-analysis/ad-ratio",
-  TREND: "/api/ad-analysis/ad-trend"
+  TREND: "/api/ad-analysis/ad-trend",
+  PRODUCTS: "/api/ad-analysis/stage-products" // 获取阶段商品列表
+};
+
+// 阶段名称映射
+const STAGE_NAMES: Record<StageKey, string> = {
+  product: "成品阶段",
+  testing: "测款阶段",
+  potential: "潜力阶段",
+  abandoned: "放弃阶段",
+  other: "其他阶段"
+};
+
+// 阶段字段映射（用于API请求）
+const STAGE_FIELD_MAP: Record<StageKey, string> = {
+  product: "product_stage",
+  testing: "testing_stage",
+  potential: "potential_stage",
+  abandoned: "abandoned_stage",
+  other: "no_stage"
 };
 
 /**
@@ -591,6 +631,101 @@ async function handleSearch() {
   await Promise.all([fetchDailyData(), fetchTrendData()]);
 }
 
+/**
+ * 获取指定阶段的商品列表
+ */
+async function fetchStageProducts(stage: StageKey) {
+  if (!selectedDate.value) {
+    ElMessage.warning("请先选择日期");
+    return;
+  }
+
+  if (!selectedShop.value) {
+    ElMessage.warning("请先选择店铺");
+    return;
+  }
+
+  currentStage.value = stage;
+  dialogTitle.value = `${STAGE_NAMES[stage]} - 商品细则`;
+  dialogVisible.value = true;
+  productListLoading.value = true;
+  productList.value = [];
+
+  try {
+    const url = new URL(API.PRODUCTS, window.location.origin);
+    url.searchParams.append("date", selectedDate.value);
+    url.searchParams.append("shopID", selectedShop.value);
+    url.searchParams.append("stage", STAGE_FIELD_MAP[stage]);
+
+    const shopOption = shopOptions.find(
+      opt => opt.value === selectedShop.value
+    );
+    if (shopOption) {
+      url.searchParams.append("shopName", shopOption.label);
+    }
+
+    const res = await fetch(url.toString());
+
+    if (!res.ok) throw new Error("获取商品列表失败");
+    const result = await res.json();
+
+    if (!result.success) {
+      throw new Error(result.error || result.message || "查询失败");
+    }
+
+    // 转换数据格式
+    if (result.data && Array.isArray(result.data)) {
+      productList.value = result.data.map((item: any) => ({
+        productId: item.product_id || item.productId || "",
+        title: item.title || "",
+        mainImage: item.main_image || item.mainImage || "",
+        adSpend: item.ad_spend || item.adSpend || 0,
+        adSales: item.ad_sales || item.adSales || 0,
+        roi: item.roi || 0
+      }));
+    } else {
+      productList.value = [];
+    }
+
+    if (productList.value.length === 0) {
+      ElMessage.info("该阶段暂无商品数据");
+    }
+  } catch (error: any) {
+    console.error("获取商品列表失败:", error);
+    // 使用模拟数据
+    productList.value = [
+      {
+        productId: "123456789",
+        title: "示例商品标题 - 这是一个测试商品",
+        mainImage: "https://via.placeholder.com/100",
+        adSpend: 123.45,
+        adSales: 456.78,
+        roi: 3.7
+      },
+      {
+        productId: "987654321",
+        title: "另一个示例商品",
+        mainImage: "https://via.placeholder.com/100",
+        adSpend: 234.56,
+        adSales: 567.89,
+        roi: 2.42
+      }
+    ];
+    ElMessage.info("使用模拟数据展示（后端接口未就绪）");
+  } finally {
+    productListLoading.value = false;
+  }
+}
+
+/**
+ * 关闭商品列表弹窗
+ */
+function closeProductDialog() {
+  dialogVisible.value = false;
+  productList.value = [];
+  currentStage.value = null;
+}
+
 // 监听 dailyData 变化，自动更新饼图
 watch(
   () => dailyData.value,
@@ -688,21 +823,33 @@ onUnmounted(() => {
                     other: '其他阶段'
                   }"
                   :key="key"
-                  class="stage-card"
-                  :class="key"
+                  class="stage-card-wrapper"
                 >
-                  <div class="stage-label">{{ stage }}</div>
-                  <div class="stage-value">
-                    ฿{{ dailyData.stages[key as keyof StageSpend].toFixed(2) }}
+                  <div class="stage-card" :class="key">
+                    <div class="stage-label">{{ stage }}</div>
+                    <div class="stage-value">
+                      ฿{{
+                        dailyData.stages[key as keyof StageSpend].toFixed(2)
+                      }}
+                    </div>
+                    <div class="stage-percentage">
+                      {{
+                        getStagePercentage(
+                          key as keyof StageSpend,
+                          totalSpend
+                        ).toFixed(1)
+                      }}%
+                    </div>
                   </div>
-                  <div class="stage-percentage">
-                    {{
-                      getStagePercentage(
-                        key as keyof StageSpend,
-                        totalSpend
-                      ).toFixed(1)
-                    }}%
-                  </div>
+                  <el-button
+                    type="primary"
+                    size="small"
+                    class="stage-detail-btn"
+                    :loading="productListLoading && currentStage === key"
+                    @click="fetchStageProducts(key as StageKey)"
+                  >
+                    查看相应商品细则
+                  </el-button>
                 </div>
               </div>
               <div class="pie-chart-container">
@@ -742,6 +889,73 @@ onUnmounted(() => {
       </template>
       <div ref="roiChartRef" class="chart-container" />
     </el-card>
+
+    <!-- 商品列表弹窗 -->
+    <el-dialog
+      v-model="dialogVisible"
+      :title="dialogTitle"
+      width="80%"
+      :close-on-click-modal="false"
+      @close="closeProductDialog"
+    >
+      <div v-loading="productListLoading" class="product-list-container">
+        <el-table
+          :data="productList"
+          stripe
+          style="width: 100%"
+          empty-text="暂无商品数据"
+        >
+          <el-table-column prop="productId" label="商品ID" width="150" />
+          <el-table-column label="主图" width="100">
+            <template #default="{ row }">
+              <el-image
+                :src="row.mainImage"
+                :preview-src-list="[row.mainImage]"
+                fit="cover"
+                style="width: 80px; height: 80px; border-radius: 4px"
+                :preview-teleported="true"
+              >
+                <template #error>
+                  <div class="image-slot">
+                    <el-icon><Picture /></el-icon>
+                  </div>
+                </template>
+              </el-image>
+            </template>
+          </el-table-column>
+          <el-table-column
+            prop="title"
+            label="标题"
+            min-width="200"
+            show-overflow-tooltip
+          />
+          <el-table-column label="广告花费" width="120" align="right">
+            <template #default="{ row }">
+              ฿{{ row.adSpend.toFixed(2) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="广告销售额" width="120" align="right">
+            <template #default="{ row }">
+              ฿{{ row.adSales.toFixed(2) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="ROI" width="100" align="right">
+            <template #default="{ row }">
+              <span
+                :class="{ 'roi-high': row.roi >= 2, 'roi-low': row.roi < 1 }"
+              >
+                {{ row.roi.toFixed(2) }}
+              </span>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="closeProductDialog">关闭</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -809,6 +1023,12 @@ onUnmounted(() => {
   gap: 12px;
 }
 
+.stage-card-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .stage-card {
   padding: 16px;
   border: 1px solid #e4e7ed;
@@ -852,6 +1072,37 @@ onUnmounted(() => {
 .stage-percentage {
   font-size: 12px;
   color: #909399;
+}
+
+.stage-detail-btn {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.product-list-container {
+  min-height: 300px;
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.image-slot {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  background: #f5f7fa;
+  color: #909399;
+}
+
+.roi-high {
+  color: #67c23a;
+  font-weight: 600;
+}
+
+.roi-low {
+  color: #f56c6c;
+  font-weight: 600;
 }
 
 .roi-overview {
