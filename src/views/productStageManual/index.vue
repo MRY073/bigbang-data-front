@@ -81,6 +81,10 @@ const currentPage = ref(1); // 当前页码
 const pageSize = ref(20); // 每页显示数量
 const pageSizes = [10, 20, 50, 100, 200]; // 每页数量选项
 
+// 排序相关
+type SortOrder = "default" | "asc" | "desc";
+const currentStageSort = ref<SortOrder>("default");
+
 // 店铺选项（与数据上传页面保持一致）
 const shopOptions = [
   {
@@ -498,7 +502,7 @@ async function saveProductStages(productId: string) {
   }
 }
 
-/** 过滤后的产品列表（先过滤阶段和产品ID/名称，再分页） */
+/** 过滤后的产品列表（先过滤阶段和产品ID/名称，再排序，最后分页） */
 const filteredProducts = computed(() => {
   // 先根据阶段筛选
   let filtered: ProductRow[];
@@ -531,6 +535,26 @@ const filteredProducts = computed(() => {
     filtered = filtered.filter(row =>
       row.product_name.toLowerCase().includes(nameFilter)
     );
+  }
+
+  // 按当前阶段字符串排序
+  if (currentStageSort.value !== "default") {
+    filtered = [...filtered].sort((a, b) => {
+      const stageA = a.currentStage || "";
+      const stageB = b.currentStage || "";
+
+      // 没有当前阶段的排在最后
+      if (!stageA && !stageB) return 0;
+      if (!stageA) return 1;
+      if (!stageB) return -1;
+
+      // 按阶段字符串排序
+      if (currentStageSort.value === "asc") {
+        return stageA.localeCompare(stageB);
+      } else {
+        return stageB.localeCompare(stageA);
+      }
+    });
   }
 
   // 然后进行分页
@@ -626,6 +650,19 @@ function handleClearFilter() {
   // 重置到第一页
   currentPage.value = 1;
 }
+
+/** 切换当前时段排序 */
+function toggleCurrentStageSort() {
+  if (currentStageSort.value === "default") {
+    currentStageSort.value = "asc";
+  } else if (currentStageSort.value === "asc") {
+    currentStageSort.value = "desc";
+  } else {
+    currentStageSort.value = "default";
+  }
+  // 重置到第一页
+  currentPage.value = 1;
+}
 </script>
 
 <template>
@@ -712,6 +749,16 @@ function handleClearFilter() {
             header-align="center"
             fixed="left"
           >
+            <template #header>
+              <div class="sortable-header" @click="toggleCurrentStageSort">
+                <span>当前阶段</span>
+                <span class="sort-icon">
+                  <span v-if="currentStageSort === 'default'">⇅</span>
+                  <span v-else-if="currentStageSort === 'asc'">↑</span>
+                  <span v-else>↓</span>
+                </span>
+              </div>
+            </template>
             <template #default="{ row }">
               <div class="cell-center">
                 <span
@@ -1204,5 +1251,32 @@ function handleClearFilter() {
   display: flex;
   justify-content: flex-end;
   padding: 12px 0;
+}
+
+/* 可排序表头样式 */
+.sortable-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.2s;
+}
+
+.sortable-header:hover {
+  color: #409eff;
+}
+
+.sort-icon {
+  display: inline-flex;
+  align-items: center;
+  font-size: 14px;
+  color: #909399;
+  transition: color 0.2s;
+}
+
+.sortable-header:hover .sort-icon {
+  color: #409eff;
 }
 </style>

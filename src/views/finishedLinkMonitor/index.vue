@@ -22,11 +22,11 @@ type ProductCard = {
   name: string;
   image?: string | null;
   visitorsAvg: number[];
-  visitorsVolatility: Volatility[];
+  visitorsVolatilityBaseline: Volatility[];
   adCostAvg: number[];
-  adCostVolatility: Volatility[];
+  adCostVolatilityBaseline: Volatility[];
   salesAvg: number[];
-  salesVolatility: Volatility[];
+  salesVolatilityBaseline: Volatility[];
   warningLevel: WarningLevel;
   warningMessages?: string[];
 };
@@ -105,6 +105,14 @@ function formatNumberWithLocale(num: number): string {
   return parseFloat(num.toFixed(2)).toLocaleString();
 }
 
+/** 安全格式化波动率强度（处理 null/undefined） */
+function formatVolatilityStrength(strength: number | null | undefined): string {
+  if (strength == null || isNaN(strength)) {
+    return "0.00";
+  }
+  return strength.toFixed(2);
+}
+
 /** 滑动窗口配置 */
 const WINDOWS = [1, 3, 7, 15, 30];
 
@@ -139,7 +147,7 @@ function loadMockData() {
       name: "成品 — 舒适运动鞋",
       image: "https://via.placeholder.com/120?text=SKU-1001",
       visitorsAvg: [4200, 4500, 4700, 4900, 5100],
-      visitorsVolatility: [
+      visitorsVolatilityBaseline: [
         { window: 1, direction: "+", strength: 21.4, level: "一般" },
         { window: 3, direction: "+", strength: 18.6, level: "轻微" },
         { window: 7, direction: "+", strength: 15.2, level: "轻微" },
@@ -147,7 +155,7 @@ function loadMockData() {
         { window: 30, direction: "+", strength: 8.5, level: "极小" }
       ],
       adCostAvg: [1200.5, 1400.2, 1500.3, 1600.0, 1700.9],
-      adCostVolatility: [
+      adCostVolatilityBaseline: [
         { window: 1, direction: "+", strength: 15.3, level: "轻微" },
         { window: 3, direction: "+", strength: 12.8, level: "轻微" },
         { window: 7, direction: "+", strength: 10.5, level: "轻微" },
@@ -155,7 +163,7 @@ function loadMockData() {
         { window: 30, direction: "+", strength: 5.2, level: "极小" }
       ],
       salesAvg: [32000, 33000, 34000, 35000, 36000],
-      salesVolatility: [
+      salesVolatilityBaseline: [
         { window: 1, direction: "+", strength: 16.2, level: "轻微" },
         { window: 3, direction: "+", strength: 13.7, level: "轻微" },
         { window: 7, direction: "+", strength: 11.5, level: "轻微" },
@@ -170,7 +178,7 @@ function loadMockData() {
       name: "成品 — 高端皮带",
       image: "https://via.placeholder.com/120?text=SKU-2002",
       visitorsAvg: [800, 760, 700, 650, 620],
-      visitorsVolatility: [
+      visitorsVolatilityBaseline: [
         { window: 1, direction: "-", strength: 22.5, level: "一般" },
         { window: 3, direction: "-", strength: 35.5, level: "一般" },
         { window: 7, direction: "-", strength: 25.0, level: "一般" },
@@ -178,7 +186,7 @@ function loadMockData() {
         { window: 30, direction: "-", strength: 5.0, level: "极小" }
       ],
       adCostAvg: [900, 880, 860, 840, 820],
-      adCostVolatility: [
+      adCostVolatilityBaseline: [
         { window: 1, direction: "-", strength: 11.1, level: "轻微" },
         { window: 3, direction: "-", strength: 8.9, level: "极小" },
         { window: 7, direction: "-", strength: 6.7, level: "极小" },
@@ -186,7 +194,7 @@ function loadMockData() {
         { window: 30, direction: "-", strength: 2.2, level: "极小" }
       ],
       salesAvg: [5000, 4800, 4500, 4200, 4000],
-      salesVolatility: [
+      salesVolatilityBaseline: [
         { window: 1, direction: "-", strength: 20.0, level: "一般" },
         { window: 3, direction: "-", strength: 30.0, level: "明显" },
         { window: 7, direction: "-", strength: 20.0, level: "一般" },
@@ -201,7 +209,7 @@ function loadMockData() {
       name: "成品 — 电子秤（热销）",
       image: "https://via.placeholder.com/120?text=SKU-3003",
       visitorsAvg: [12000, 12500, 13000, 13500, 14000],
-      visitorsVolatility: [
+      visitorsVolatilityBaseline: [
         { window: 1, direction: "+", strength: 16.7, level: "轻微" },
         { window: 3, direction: "+", strength: 18.7, level: "轻微" },
         { window: 7, direction: "+", strength: 12.5, level: "轻微" },
@@ -209,7 +217,7 @@ function loadMockData() {
         { window: 30, direction: "+", strength: 4.2, level: "极小" }
       ],
       adCostAvg: [5000, 5200, 5400, 5600, 5800],
-      adCostVolatility: [
+      adCostVolatilityBaseline: [
         { window: 1, direction: "+", strength: 20.0, level: "一般" },
         { window: 3, direction: "+", strength: 16.0, level: "轻微" },
         { window: 7, direction: "+", strength: 12.0, level: "轻微" },
@@ -217,7 +225,7 @@ function loadMockData() {
         { window: 30, direction: "+", strength: 4.0, level: "极小" }
       ],
       salesAvg: [80000, 82000, 84000, 86000, 88000],
-      salesVolatility: [
+      salesVolatilityBaseline: [
         { window: 1, direction: "+", strength: 10.0, level: "轻微" },
         { window: 3, direction: "+", strength: 10.0, level: "轻微" },
         { window: 7, direction: "+", strength: 7.5, level: "极小" },
@@ -235,7 +243,7 @@ function loadMockData() {
       name: "成品 — 夏季连衣裙",
       image: null,
       visitorsAvg: [300, 280, 250, 220, 200],
-      visitorsVolatility: [
+      visitorsVolatilityBaseline: [
         { window: 1, direction: "-", strength: 33.3, level: "明显" },
         { window: 3, direction: "-", strength: 50.0, level: "明显" },
         { window: 7, direction: "-", strength: 33.3, level: "明显" },
@@ -243,7 +251,7 @@ function loadMockData() {
         { window: 30, direction: "-", strength: 6.7, level: "极小" }
       ],
       adCostAvg: [50, 45, 40, 35, 30],
-      adCostVolatility: [
+      adCostVolatilityBaseline: [
         { window: 1, direction: "-", strength: 40.0, level: "明显" },
         { window: 3, direction: "-", strength: 40.0, level: "明显" },
         { window: 7, direction: "-", strength: 30.0, level: "明显" },
@@ -251,7 +259,7 @@ function loadMockData() {
         { window: 30, direction: "-", strength: 10.0, level: "轻微" }
       ],
       salesAvg: [1200, 1100, 1000, 900, 800],
-      salesVolatility: [
+      salesVolatilityBaseline: [
         { window: 1, direction: "-", strength: 33.3, level: "明显" },
         { window: 3, direction: "-", strength: 50.0, level: "明显" },
         { window: 7, direction: "-", strength: 33.3, level: "明显" },
@@ -293,9 +301,9 @@ async function fetchData() {
     // 规范化数据，确保每个产品都有必要的字段
     products.value = (data || []).map((item: ProductCard) => ({
       ...item,
-      visitorsVolatility: item.visitorsVolatility || [],
-      adCostVolatility: item.adCostVolatility || [],
-      salesVolatility: item.salesVolatility || [],
+      visitorsVolatilityBaseline: item.visitorsVolatilityBaseline || [],
+      adCostVolatilityBaseline: item.adCostVolatilityBaseline || [],
+      salesVolatilityBaseline: item.salesVolatilityBaseline || [],
       warningMessages: item.warningMessages || []
     }));
     // 数据加载后重置到第一页
@@ -357,9 +365,9 @@ watch(selectedShop, () => {
   currentPage.value = 1;
 });
 
-onMounted(() => {
-  fetchData();
-});
+// onMounted(() => {
+//   fetchData();
+// });
 </script>
 
 <template>
@@ -493,12 +501,26 @@ onMounted(() => {
           </div>
 
           <div class="metric-block">
-            <div class="metric-title">访客数滑动窗口波动率</div>
+            <div class="metric-title">访客数短期波动相对长期基准(60)指标</div>
             <div class="metric-values volatility-values">
               <span
-                v-for="window in WINDOWS"
+                v-for="window in WINDOWS.filter(w => w !== 1)"
                 :key="window"
                 class="volatility-item"
+                :class="{
+                  'volatility-highlight':
+                    p.visitorsVolatilityBaseline?.find(v => v.window === window)
+                      ?.level === '明显' ||
+                    p.visitorsVolatilityBaseline?.find(v => v.window === window)
+                      ?.level === '剧烈',
+                  'volatility-subtle':
+                    p.visitorsVolatilityBaseline?.find(v => v.window === window)
+                      ?.level === '极小' ||
+                    p.visitorsVolatilityBaseline?.find(v => v.window === window)
+                      ?.level === '轻微' ||
+                    p.visitorsVolatilityBaseline?.find(v => v.window === window)
+                      ?.level === '一般'
+                }"
                 :style="{
                   borderColor: WINDOW_COLORS[window],
                   backgroundColor: WINDOW_COLORS[window] + '10'
@@ -506,12 +528,12 @@ onMounted(() => {
               >
                 <template
                   v-if="
-                    p.visitorsVolatility &&
-                    p.visitorsVolatility.find(v => v.window === window)
+                    p.visitorsVolatilityBaseline &&
+                    p.visitorsVolatilityBaseline.find(v => v.window === window)
                   "
                 >
                   <template
-                    v-for="vol in p.visitorsVolatility.filter(
+                    v-for="vol in p.visitorsVolatilityBaseline.filter(
                       v => v.window === window
                     )"
                     :key="vol.window"
@@ -536,7 +558,7 @@ onMounted(() => {
                         color: directionColors[vol.direction]
                       }"
                     >
-                      {{ vol.strength.toFixed(2) }}%
+                      {{ formatVolatilityStrength(vol.strength) }}%
                     </span>
                     <span
                       class="volatility-level"
@@ -567,12 +589,26 @@ onMounted(() => {
           </div>
 
           <div class="metric-block">
-            <div class="metric-title">广告花费滑动窗口波动率</div>
+            <div class="metric-title">广告花费短期波动相对长期基准(60)指标</div>
             <div class="metric-values volatility-values">
               <span
-                v-for="window in WINDOWS"
+                v-for="window in WINDOWS.filter(w => w !== 1)"
                 :key="window"
                 class="volatility-item"
+                :class="{
+                  'volatility-highlight':
+                    p.adCostVolatilityBaseline?.find(v => v.window === window)
+                      ?.level === '明显' ||
+                    p.adCostVolatilityBaseline?.find(v => v.window === window)
+                      ?.level === '剧烈',
+                  'volatility-subtle':
+                    p.adCostVolatilityBaseline?.find(v => v.window === window)
+                      ?.level === '极小' ||
+                    p.adCostVolatilityBaseline?.find(v => v.window === window)
+                      ?.level === '轻微' ||
+                    p.adCostVolatilityBaseline?.find(v => v.window === window)
+                      ?.level === '一般'
+                }"
                 :style="{
                   borderColor: WINDOW_COLORS[window],
                   backgroundColor: WINDOW_COLORS[window] + '10'
@@ -580,12 +616,12 @@ onMounted(() => {
               >
                 <template
                   v-if="
-                    p.adCostVolatility &&
-                    p.adCostVolatility.find(v => v.window === window)
+                    p.adCostVolatilityBaseline &&
+                    p.adCostVolatilityBaseline.find(v => v.window === window)
                   "
                 >
                   <template
-                    v-for="vol in p.adCostVolatility.filter(
+                    v-for="vol in p.adCostVolatilityBaseline.filter(
                       v => v.window === window
                     )"
                     :key="vol.window"
@@ -610,7 +646,7 @@ onMounted(() => {
                         color: directionColors[vol.direction]
                       }"
                     >
-                      {{ vol.strength.toFixed(2) }}%
+                      {{ formatVolatilityStrength(vol.strength) }}%
                     </span>
                     <span
                       class="volatility-level"
@@ -641,12 +677,26 @@ onMounted(() => {
           </div>
 
           <div class="metric-block">
-            <div class="metric-title">销售额滑动窗口波动率</div>
+            <div class="metric-title">销售额短期波动相对长期基准(60)指标</div>
             <div class="metric-values volatility-values">
               <span
-                v-for="window in WINDOWS"
+                v-for="window in WINDOWS.filter(w => w !== 1)"
                 :key="window"
                 class="volatility-item"
+                :class="{
+                  'volatility-highlight':
+                    p.salesVolatilityBaseline?.find(v => v.window === window)
+                      ?.level === '明显' ||
+                    p.salesVolatilityBaseline?.find(v => v.window === window)
+                      ?.level === '剧烈',
+                  'volatility-subtle':
+                    p.salesVolatilityBaseline?.find(v => v.window === window)
+                      ?.level === '极小' ||
+                    p.salesVolatilityBaseline?.find(v => v.window === window)
+                      ?.level === '轻微' ||
+                    p.salesVolatilityBaseline?.find(v => v.window === window)
+                      ?.level === '一般'
+                }"
                 :style="{
                   borderColor: WINDOW_COLORS[window],
                   backgroundColor: WINDOW_COLORS[window] + '10'
@@ -654,12 +704,12 @@ onMounted(() => {
               >
                 <template
                   v-if="
-                    p.salesVolatility &&
-                    p.salesVolatility.find(v => v.window === window)
+                    p.salesVolatilityBaseline &&
+                    p.salesVolatilityBaseline.find(v => v.window === window)
                   "
                 >
                   <template
-                    v-for="vol in p.salesVolatility.filter(
+                    v-for="vol in p.salesVolatilityBaseline.filter(
                       v => v.window === window
                     )"
                     :key="vol.window"
@@ -684,7 +734,7 @@ onMounted(() => {
                         color: directionColors[vol.direction]
                       }"
                     >
-                      {{ vol.strength.toFixed(2) }}%
+                      {{ formatVolatilityStrength(vol.strength) }}%
                     </span>
                     <span
                       class="volatility-level"
@@ -911,33 +961,14 @@ onMounted(() => {
 
 .metric-value {
   padding: 6px 10px;
-  border-radius: 6px;
+  border-radius: 4px;
   min-width: 72px;
   text-align: center;
-  font-weight: 700;
-  color: #fff;
-  box-shadow: 0 2px 6px rgba(16, 34, 70, 0.06);
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
-    Arial;
+  font-weight: 500;
+  color: #303133;
+  background: #f5f7fa;
+  border: 1px solid #e4e7ed;
   font-size: 14px;
-}
-
-/* 不同位置不同颜色（便于区分 30/15/7/3/1） */
-.metric-value.c0 {
-  background: linear-gradient(135deg, #2b8cff 0%, #4aa6ff 100%);
-}
-.metric-value.c1 {
-  background: linear-gradient(135deg, #1abc9c 0%, #34d9b1 100%);
-}
-.metric-value.c2 {
-  background: linear-gradient(135deg, #ffb400 0%, #ffc857 100%);
-}
-.metric-value.c3 {
-  background: linear-gradient(135deg, #ff6b6b 0%, #ff8f8f 100%);
-}
-.metric-value.c4 {
-  background: linear-gradient(135deg, #6f42c1 0%, #8a6fe6 100%);
 }
 
 /* 滑动窗口波动率显示样式 */
@@ -957,6 +988,21 @@ onMounted(() => {
   border-radius: 6px;
   font-size: 13px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+/* 轻微和一般不突出显示 */
+.volatility-item.volatility-subtle {
+  opacity: 0.6;
+  border-width: 1px;
+  box-shadow: none;
+}
+
+/* 明显和剧烈突出显示 */
+.volatility-item.volatility-highlight {
+  border-width: 3px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  font-weight: 600;
+  transform: scale(1.05);
 }
 
 .volatility-window {
