@@ -10,7 +10,7 @@ type BackendProduct = {
   product_id: string;
   product_name: string;
   product_image: string | null;
-  testing_start_date: string | null; // 测款日期开始
+  testing_stage_start: string | null; // 测款日期开始
   total_visitors: number;
   total_orders: number;
 };
@@ -20,10 +20,13 @@ type Product = {
   product_id: string;
   product_name: string;
   product_image: string | null;
-  testing_start_date: string | null; // 测款日期开始
+  testing_stage_start: string | null; // 测款日期开始
   total_visitors: number;
   total_orders: number;
 };
+
+// 测款状态枚举
+type TestingStatus = "finished" | "watching" | "normal";
 
 const products = ref<Product[]>([]);
 const loading = ref(false);
@@ -55,32 +58,70 @@ function formatNumber(num: number): string {
 }
 
 /**
- * 格式化日期显示
+ * 格式化日期显示（正确处理 ISO 8601 格式）
  */
 function formatDate(dateString: string | null): string {
   if (!dateString) return "未设置";
   try {
+    // ISO 8601 格式可能是：YYYY-MM-DD 或 YYYY-MM-DDTHH:mm:ss.sssZ 等
+    // 直接提取日期部分，避免时区转换问题
+    const dateMatch = dateString.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (dateMatch) {
+      // 验证日期有效性
+      const year = parseInt(dateMatch[1], 10);
+      const month = parseInt(dateMatch[2], 10);
+      const day = parseInt(dateMatch[3], 10);
+
+      // 基本验证
+      if (
+        year >= 1900 &&
+        year <= 2100 &&
+        month >= 1 &&
+        month <= 12 &&
+        day >= 1 &&
+        day <= 31
+      ) {
+        return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      }
+    }
+
+    // 如果正则匹配失败，尝试使用 Date 对象（兼容其他格式）
     const date = new Date(dateString);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
+    if (!isNaN(date.getTime())) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
+    return "日期格式错误";
   } catch {
     return "日期格式错误";
   }
 }
 
 /**
- * 判断测款日期是否超过15天
+ * 判断测款日期是否超过15天（正确处理 ISO 8601 格式）
  */
 function isTestingDateOver15Days(dateString: string | null): boolean {
   if (!dateString) return false;
   try {
-    const testingDate = new Date(dateString);
+    // 从 ISO 8601 格式中提取日期部分（YYYY-MM-DD），避免时区问题
+    const dateMatch = dateString.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!dateMatch) return false;
+
+    const year = parseInt(dateMatch[1], 10);
+    const month = parseInt(dateMatch[2], 10) - 1; // 月份从0开始
+    const day = parseInt(dateMatch[3], 10);
+
+    // 创建测试日期（使用本地时区，但只使用日期部分）
+    const testingDate = new Date(year, month, day);
     const today = new Date();
+
     // 重置时间到0点，只比较日期
     today.setHours(0, 0, 0, 0);
     testingDate.setHours(0, 0, 0, 0);
+
     // 计算天数差
     const diffTime = today.getTime() - testingDate.getTime();
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
@@ -91,23 +132,78 @@ function isTestingDateOver15Days(dateString: string | null): boolean {
 }
 
 /**
- * 判断是否需要显示警告（需要更改链接状态）
+ * 获取测款状态
+ * 第一类：测款完毕 - 点击数 > 100 或 订单数 > 6 或 测款开始日期 > 15天
+ * 第二类：测款关注中 - 点击数 50-100 或 订单数 3-6
+ * 第三类：白板 - 点击数 < 50 或 订单数 0-2
  */
-function shouldShowAlert(p: Product): boolean {
-  return (
-    p.total_visitors >= 100 ||
-    p.total_orders >= 5 ||
-    isTestingDateOver15Days(p.testing_start_date)
-  );
+function getTestingStatus(p: Product): TestingStatus {
+  const visitors = p.total_visitors;
+  const orders = p.total_orders;
+  const isOver15Days = isTestingDateOver15Days(p.testing_stage_start);
+
+  // 第一类：测款完毕
+  if (visitors > 100 || orders > 6 || isOver15Days) {
+    return "finished";
+  }
+
+  // 第二类：测款关注中
+  if ((visitors >= 50 && visitors <= 100) || (orders >= 3 && orders <= 6)) {
+    return "watching";
+  }
+
+  // 第三类：白板
+  return "normal";
 }
 
 /**
- * 根据数据判断卡片样式类
+ * 根据状态判断卡片样式类
  */
 function rowClass(p: Product) {
-  if (shouldShowAlert(p)) return "card-alert-red";
-  if (p.total_visitors >= 50) return "card-alert-green";
+  const status = getTestingStatus(p);
+  if (status === "finished") return "card-status-finished";
+  if (status === "watching") return "card-status-watching";
+  return "card-status-normal";
+}
+
+/**
+ * 获取状态标签文本
+ */
+function getStatusLabel(p: Product): string {
+  const status = getTestingStatus(p);
+  if (status === "finished") return "测款完毕";
+  if (status === "watching") return "测款关注中";
   return "";
+}
+
+/**
+ * 获取状态提示信息
+ */
+function getStatusHint(p: Product): string {
+  const status = getTestingStatus(p);
+  if (status === "finished") return "测款已完成，需马上处理";
+  if (status === "watching") return "数据优秀情况下及时转为潜力款，需尽快处理";
+  return "";
+}
+
+/**
+ * 获取状态优先级（用于排序）
+ */
+function getStatusPriority(status: TestingStatus): number {
+  if (status === "finished") return 1; // 最高优先级
+  if (status === "watching") return 2;
+  return 3; // 白板最低优先级
+}
+
+/**
+ * 对商品列表按状态排序
+ */
+function sortProductsByStatus(productsList: Product[]): Product[] {
+  return [...productsList].sort((a, b) => {
+    const statusA = getTestingStatus(a);
+    const statusB = getTestingStatus(b);
+    return getStatusPriority(statusA) - getStatusPriority(statusB);
+  });
 }
 
 /**
@@ -123,11 +219,12 @@ function loadMockData() {
   date5DaysAgo.setDate(today.getDate() - 5); // 5天前
 
   products.value = [
+    // 测款完毕状态示例
     {
       product_id: "SKU-T1001",
       product_name: "测款 — 轻便跑鞋",
       product_image: "https://via.placeholder.com/160?text=T1001",
-      testing_start_date: date20DaysAgo.toISOString().split("T")[0],
+      testing_stage_start: date20DaysAgo.toISOString().split("T")[0], // 超过15天
       total_orders: 2,
       total_visitors: 60
     },
@@ -135,33 +232,51 @@ function loadMockData() {
       product_id: "SKU-T1002",
       product_name: "测款 — 多功能杯",
       product_image: "https://via.placeholder.com/160?text=T1002",
-      testing_start_date: date10DaysAgo.toISOString().split("T")[0],
-      total_orders: 6,
-      total_visitors: 110
+      testing_stage_start: date10DaysAgo.toISOString().split("T")[0],
+      total_orders: 7, // 订单数 > 6
+      total_visitors: 85
     },
     {
       product_id: "SKU-T1003",
-      product_name: "测款 — 创意手机支架",
-      product_image: null,
-      testing_start_date: date5DaysAgo.toISOString().split("T")[0],
-      total_orders: 0,
-      total_visitors: 45
+      product_name: "测款 — 智能照明灯",
+      product_image: "https://via.placeholder.com/160?text=T1003",
+      testing_stage_start: date5DaysAgo.toISOString().split("T")[0],
+      total_orders: 4,
+      total_visitors: 120 // 点击数 > 100
     },
+    // 测款关注中状态示例
     {
       product_id: "SKU-T1004",
-      product_name: "测款 — 智能照明灯",
-      product_image: "https://via.placeholder.com/160?text=T1004",
-      testing_start_date: date20DaysAgo.toISOString().split("T")[0],
-      total_orders: 4,
-      total_visitors: 98
+      product_name: "测款 — 创意手机支架",
+      product_image: null,
+      testing_stage_start: date5DaysAgo.toISOString().split("T")[0],
+      total_orders: 5, // 订单数 3-6
+      total_visitors: 75 // 点击数 50-100
     },
     {
       product_id: "SKU-T1005",
       product_name: "测款 — 多彩背包",
       product_image: "https://via.placeholder.com/160?text=T1005",
-      testing_start_date: date10DaysAgo.toISOString().split("T")[0],
+      testing_stage_start: date10DaysAgo.toISOString().split("T")[0],
       total_orders: 1,
-      total_visitors: 52
+      total_visitors: 65 // 点击数 50-100
+    },
+    // 白板状态示例
+    {
+      product_id: "SKU-T1006",
+      product_name: "测款 — 简约水杯",
+      product_image: "https://via.placeholder.com/160?text=T1006",
+      testing_stage_start: date5DaysAgo.toISOString().split("T")[0],
+      total_orders: 0,
+      total_visitors: 30 // 点击数 < 50
+    },
+    {
+      product_id: "SKU-T1007",
+      product_name: "测款 — 运动手环",
+      product_image: "https://via.placeholder.com/160?text=T1007",
+      testing_stage_start: date10DaysAgo.toISOString().split("T")[0],
+      total_orders: 2, // 订单数 0-2
+      total_visitors: 45 // 点击数 < 50
     }
   ];
 }
@@ -192,8 +307,9 @@ async function fetchData() {
     const result = await res.json();
 
     if (result.success && result.data) {
-      // 直接使用后端返回的数据结构
-      products.value = result.data as Product[];
+      // 直接使用后端返回的数据结构，并按状态排序
+      const data = result.data as Product[];
+      products.value = sortProductsByStatus(data);
       if (products.value.length === 0) {
         ElMessage.info("当前店铺暂无测款商品");
       } else {
@@ -212,6 +328,8 @@ async function fetchData() {
       error?.message?.includes("fetch")
     ) {
       loadMockData();
+      // 对模拟数据也进行排序
+      products.value = sortProductsByStatus(products.value);
       ElMessage.info("使用本地示例数据（后端不可用）");
     } else {
       ElMessage.error(error?.message || "网络连接失败，请检查网络后重试");
@@ -316,9 +434,13 @@ async function copyId(text: string) {
             </div>
             <div class="name" :title="p.product_name">{{ p.product_name }}</div>
             <div class="tags">
-              <el-tag v-if="shouldShowAlert(p)" type="danger">需处理</el-tag>
-              <el-tag v-else-if="p.total_visitors >= 50" type="success"
-                >关注中</el-tag
+              <el-tag v-if="getTestingStatus(p) === 'finished'" type="danger"
+                >测款完毕</el-tag
+              >
+              <el-tag
+                v-else-if="getTestingStatus(p) === 'watching'"
+                type="warning"
+                >测款关注中</el-tag
               >
             </div>
           </div>
@@ -327,7 +449,7 @@ async function copyId(text: string) {
         <div class="card-metrics">
           <div class="metric">
             <div class="label">测款日期开始</div>
-            <div class="value">{{ formatDate(p.testing_start_date) }}</div>
+            <div class="value">{{ formatDate(p.testing_stage_start) }}</div>
           </div>
           <div class="metric">
             <div class="label">出单数</div>
@@ -340,7 +462,7 @@ async function copyId(text: string) {
         </div>
 
         <div class="card-foot">
-          <div v-if="shouldShowAlert(p)" class="hint">及时更改该链接状态</div>
+          <div v-if="getStatusHint(p)" class="hint">{{ getStatusHint(p) }}</div>
         </div>
       </div>
     </div>
@@ -388,14 +510,18 @@ async function copyId(text: string) {
   box-shadow: 0 16px 30px rgba(32, 45, 61, 0.08);
 }
 
-/* 颜色类 */
-.card-alert-green {
-  background: linear-gradient(180deg, #f6fff7 0%, #eefcf0 100%);
-  border: 1px solid rgba(34, 197, 94, 0.08);
-}
-.card-alert-red {
+/* 状态颜色类 */
+.card-status-finished {
   background: linear-gradient(180deg, #fff6f6 0%, #fff1f1 100%);
-  border: 1px solid rgba(255, 77, 79, 0.08);
+  border: 1px solid rgba(255, 77, 79, 0.15);
+}
+.card-status-watching {
+  background: linear-gradient(180deg, #fffbf0 0%, #fff7e6 100%);
+  border: 1px solid rgba(250, 173, 20, 0.15);
+}
+.card-status-normal {
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  border: 1px solid rgba(16, 34, 70, 0.04);
 }
 
 /* 顶部：图片 + 基本信息 */
@@ -492,9 +618,14 @@ async function copyId(text: string) {
 
 /* 底部提示 */
 .card-foot .hint {
-  color: #cf1322;
   font-weight: 700;
   font-size: 13px;
+}
+.card-status-finished .card-foot .hint {
+  color: #cf1322;
+}
+.card-status-watching .card-foot .hint {
+  color: #d48806;
 }
 
 /* 响应式：窄屏时每行一个块 */

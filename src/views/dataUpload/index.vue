@@ -27,8 +27,8 @@ const uploadRef = ref<UploadInstance>();
 
 // 表单数据
 const formData = ref({
-  type: "ad", // 默认选择广告文件上传
-  shop: "1489850435" // 默认选择店铺
+  type: "", // 必须手动选择上传类型
+  shop: "" // 必须手动选择店铺
 });
 
 // 上传文件列表
@@ -77,6 +77,12 @@ const beforeUpload: UploadProps["beforeUpload"] = file => {
     return false;
   }
 
+  // 检查是否已选择上传类型
+  if (!formData.value.type) {
+    ElMessage.error("请先选择上传类型!");
+    return false;
+  }
+
   // 商品ID更新（全量）类型只能上传一个文件
   if (formData.value.type === "productID") {
     if (fileList.value.length >= 1) {
@@ -100,8 +106,19 @@ const beforeUpload: UploadProps["beforeUpload"] = file => {
 
 // 处理上传请求：启动请求后立即清空页面，接口完成后再弹出 toast
 const handleUpload = async (formEl: FormInstance | undefined) => {
-  debugger;
   if (!formEl) return;
+
+  // 验证是否已选择店铺
+  if (!formData.value.shop) {
+    ElMessage.warning("请先选择店铺");
+    return;
+  }
+
+  // 验证是否已选择上传类型
+  if (!formData.value.type) {
+    ElMessage.warning("请先选择上传类型");
+    return;
+  }
 
   if (!fileList.value || !fileList.value.length) {
     ElMessage.warning("请先选择要上传的文件");
@@ -177,7 +194,7 @@ watch(
   () => formData.value.type,
   (newType, oldType) => {
     // 如果切换到商品ID更新类型，且文件列表中有多个文件
-    if (newType === "productID" && fileList.value.length > 1) {
+    if (newType && newType === "productID" && fileList.value.length > 1) {
       // 只保留第一个文件
       fileList.value = [fileList.value[0]];
       uploadRef.value?.clearFiles();
@@ -311,7 +328,7 @@ watch(
             :auto-upload="false"
             :show-file-list="true"
             :before-upload="beforeUpload"
-            :multiple="formData.type !== 'productID'"
+            :multiple="formData.type && formData.type !== 'productID'"
             accept=".csv,.xls,.xlsx"
             action="#"
             drag
@@ -338,7 +355,7 @@ watch(
             type="primary"
             size="large"
             class="submit-btn"
-            :disabled="!fileList.length"
+            :disabled="!fileList.length || !formData.shop || !formData.type"
             :loading="uploading"
             @click="debouncedUpload(formRef)"
           >

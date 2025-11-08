@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, shallowRef } from "vue";
 import { ElMessage, ElLoading } from "element-plus";
 import type { LoadingInstance } from "element-plus";
 
@@ -63,7 +63,8 @@ const stageTypeMap: Record<StageType, string> = {
 // 筛选阶段类型（包含"全部"选项）
 type FilterStageType = "all" | StageType;
 
-const products = ref<ProductRow[]>([]);
+// 使用 shallowRef 优化大数据量的响应式性能
+const products = shallowRef<ProductRow[]>([]);
 const pageLoading = ref(false);
 const filterStage = ref<FilterStageType>("all");
 const selectedShop = ref<string>("1489850435"); // 默认选择第一个店铺
@@ -502,16 +503,21 @@ async function saveProductStages(productId: string) {
   }
 }
 
-/** 过滤后的产品列表（先过滤阶段和产品ID/名称，再排序，最后分页） */
-const filteredProducts = computed(() => {
+// 缓存筛选和排序后的完整列表，避免重复计算
+const filteredAndSortedProducts = computed(() => {
+  const productsList = products.value;
+  if (productsList.length === 0) {
+    return [];
+  }
+
   // 先根据阶段筛选
   let filtered: ProductRow[];
   if (filterStage.value === "all") {
-    filtered = products.value;
+    filtered = productsList;
   } else {
     const stageType = filterStage.value as StageType;
     // 只保留那些在该阶段有时间段或当前阶段为该阶段
-    filtered = products.value.filter(row => {
+    filtered = productsList.filter(row => {
       const stage = row[
         `${stageType}_stage` as keyof ProductRow
       ] as StageTimeRange;
@@ -522,24 +528,27 @@ const filteredProducts = computed(() => {
   }
 
   // 根据产品ID筛选
-  if (appliedProductIdFilter.value.trim()) {
-    const idFilter = appliedProductIdFilter.value.trim().toLowerCase();
+  const idFilterTrimmed = appliedProductIdFilter.value.trim();
+  if (idFilterTrimmed) {
+    const idFilter = idFilterTrimmed.toLowerCase();
     filtered = filtered.filter(row =>
       row.product_id.toLowerCase().includes(idFilter)
     );
   }
 
   // 根据产品名称筛选
-  if (appliedProductNameFilter.value.trim()) {
-    const nameFilter = appliedProductNameFilter.value.trim().toLowerCase();
+  const nameFilterTrimmed = appliedProductNameFilter.value.trim();
+  if (nameFilterTrimmed) {
+    const nameFilter = nameFilterTrimmed.toLowerCase();
     filtered = filtered.filter(row =>
       row.product_name.toLowerCase().includes(nameFilter)
     );
   }
 
-  // 按当前阶段字符串排序
+  // 按当前阶段字符串排序（只在需要排序时创建新数组）
   if (currentStageSort.value !== "default") {
-    filtered = [...filtered].sort((a, b) => {
+    // 使用 toSorted 或手动排序，避免修改原数组
+    filtered = filtered.slice().sort((a, b) => {
       const stageA = a.currentStage || "";
       const stageB = b.currentStage || "";
 
@@ -557,7 +566,12 @@ const filteredProducts = computed(() => {
     });
   }
 
-  // 然后进行分页
+  return filtered;
+});
+
+/** 过滤后的产品列表（分页后的数据） */
+const filteredProducts = computed(() => {
+  const filtered = filteredAndSortedProducts.value;
   const start = (currentPage.value - 1) * pageSize.value;
   const end = start + pageSize.value;
   return filtered.slice(start, end);
@@ -565,39 +579,7 @@ const filteredProducts = computed(() => {
 
 /** 过滤后的总数（用于分页显示） */
 const filteredTotal = computed(() => {
-  // 先根据阶段筛选
-  let filtered: ProductRow[];
-  if (filterStage.value === "all") {
-    filtered = products.value;
-  } else {
-    const stageType = filterStage.value as StageType;
-    filtered = products.value.filter(row => {
-      const stage = row[
-        `${stageType}_stage` as keyof ProductRow
-      ] as StageTimeRange;
-      const hasRange = stage?.start_time && stage?.end_time;
-      const isCurrent = row.currentStage === stageType;
-      return hasRange || isCurrent;
-    });
-  }
-
-  // 根据产品ID筛选
-  if (appliedProductIdFilter.value.trim()) {
-    const idFilter = appliedProductIdFilter.value.trim().toLowerCase();
-    filtered = filtered.filter(row =>
-      row.product_id.toLowerCase().includes(idFilter)
-    );
-  }
-
-  // 根据产品名称筛选
-  if (appliedProductNameFilter.value.trim()) {
-    const nameFilter = appliedProductNameFilter.value.trim().toLowerCase();
-    filtered = filtered.filter(row =>
-      row.product_name.toLowerCase().includes(nameFilter)
-    );
-  }
-
-  return filtered.length;
+  return filteredAndSortedProducts.value.length;
 });
 
 /** 处理页码变化 */
