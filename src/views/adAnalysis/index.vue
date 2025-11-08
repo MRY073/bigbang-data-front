@@ -204,9 +204,8 @@ function initPieChart(container: HTMLElement) {
         center: ["60%", "50%"],
         avoidLabelOverlap: false,
         itemStyle: {
-          borderRadius: 10,
           borderColor: "#fff",
-          borderWidth: 2
+          borderWidth: 1
         },
         label: {
           show: true,
@@ -215,13 +214,6 @@ function initPieChart(container: HTMLElement) {
             const percentage =
               total > 0 ? ((params.value / total) * 100).toFixed(1) : "0.0";
             return `${params.name}\n${percentage}%`;
-          }
-        },
-        emphasis: {
-          label: {
-            show: true,
-            fontSize: 16,
-            fontWeight: "bold"
           }
         },
         data: []
@@ -763,8 +755,7 @@ onUnmounted(() => {
 .overview-card {
   margin-bottom: 20px;
   background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e4e7ed;
 }
 
 .overview-header {
@@ -815,57 +806,45 @@ onUnmounted(() => {
 .stages-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 16px;
+  gap: 12px;
 }
 
 .stage-card {
-  padding: 20px;
-  border-radius: 8px;
-  background: #f8f9fa;
-  border-left: 4px solid;
-  transition: all 0.3s;
-}
-
-.stage-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  padding: 16px;
+  border: 1px solid #e4e7ed;
+  background: #fff;
+  border-left: 3px solid;
 }
 
 .stage-card.product {
   border-left-color: #67c23a;
-  background: linear-gradient(135deg, #f0f9ff 0%, #ffffff 100%);
 }
 
 .stage-card.testing {
   border-left-color: #409eff;
-  background: linear-gradient(135deg, #ecf5ff 0%, #ffffff 100%);
 }
 
 .stage-card.potential {
   border-left-color: #e6a23c;
-  background: linear-gradient(135deg, #fdf6ec 0%, #ffffff 100%);
 }
 
 .stage-card.abandoned {
   border-left-color: #f56c6c;
-  background: linear-gradient(135deg, #fef0f0 0%, #ffffff 100%);
 }
 
 .stage-card.other {
   border-left-color: #909399;
-  background: linear-gradient(135deg, #f4f4f5 0%, #ffffff 100%);
 }
 
 .stage-label {
-  font-size: 14px;
+  font-size: 13px;
   color: #606266;
   margin-bottom: 8px;
-  font-weight: 500;
 }
 
 .stage-value {
-  font-size: 20px;
-  font-weight: 700;
+  font-size: 18px;
+  font-weight: 600;
   color: #303133;
   margin-bottom: 4px;
 }
@@ -880,31 +859,29 @@ onUnmounted(() => {
 }
 
 .roi-card {
-  background: linear-gradient(135deg, #67c23a 0%, #85ce61 100%);
-  border-radius: 12px;
-  padding: 32px;
+  background: #fff;
+  border: 1px solid #e4e7ed;
+  padding: 24px;
   text-align: center;
-  color: #fff;
-  box-shadow: 0 4px 16px rgba(103, 194, 58, 0.3);
 }
 
 .roi-value {
-  font-size: 48px;
-  font-weight: 700;
+  font-size: 36px;
+  font-weight: 600;
+  color: #67c23a;
   margin-bottom: 8px;
   line-height: 1;
 }
 
 .roi-label {
   font-size: 14px;
-  opacity: 0.9;
+  color: #909399;
 }
 
 .chart-card {
   margin-bottom: 20px;
   background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e4e7ed;
 }
 
 .card-header {
@@ -955,6 +932,7 @@ onUnmounted(() => {
     grid-template-columns: repeat(3, 1fr);
   }
 }
+
 @media (max-width: 768px) {
   .stages-grid {
     grid-template-columns: repeat(2, 1fr);
