@@ -1,30 +1,75 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
-import { ElMessage, ElLoading } from "element-plus";
+import { ref, computed, onMounted, watch } from "vue";
+import { ElMessage, ElLoading, ElDialog } from "element-plus";
+import { Loading, Warning } from "@element-plus/icons-vue";
 import type { LoadingInstance } from "element-plus";
+import dayjs from "dayjs";
 
 defineOptions({ name: "FinishedLinkMonitor" });
 
 type WarningLevel = "严重" | "一般" | "轻微" | "正常";
+type ChangeLevel = "极小" | "轻微" | "一般" | "明显" | "剧烈";
+
+type Volatility = {
+  window: number; // 滑动窗口天数：1, 3, 7, 15, 30
+  direction: "+" | "-";
+  strength: number;
+  level: ChangeLevel;
+};
 
 type ProductCard = {
   id: string;
   name: string;
   image?: string | null;
   visitorsAvg: number[];
-  visitorsStd: number[];
+  visitorsVolatility: Volatility[];
   adCostAvg: number[];
-  adCostStd: number[];
+  adCostVolatility: Volatility[];
   salesAvg: number[];
-  salesStd: number[];
+  salesVolatility: Volatility[];
   warningLevel: WarningLevel;
-  warningMsg?: string;
+  warningMessages?: string[];
 };
 
 const products = ref<ProductCard[]>([]);
 const loading = ref(false);
+const selectedShop = ref<string>("1489850435"); // 默认选择第一个店铺
+const selectedDate = ref<string>(dayjs().format("YYYY-MM-DD")); // 默认选择今天
+
+// AI建议相关
+const aiSuggestionDialog = ref(false);
+const aiSuggestionContent = ref("");
+const aiSuggestionLoading = ref(false);
+const currentProductId = ref<string>("");
+
+// 分页相关
+const currentPage = ref(1);
+const pageSize = ref(10);
+
+// 计算分页后的数据
+const paginatedProducts = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value;
+  const end = start + pageSize.value;
+  return products.value.slice(start, end);
+});
+
+// 总条数
+const total = computed(() => products.value.length);
+
+// 店铺选项（与其他页面保持一致）
+const shopOptions = [
+  {
+    label: "Modern Nest|泰国",
+    value: "1489850435"
+  },
+  {
+    label: "shop07|泰国",
+    value: "1638595255"
+  }
+];
 
 const API_LIST = "/api/finished/link/monitor/list"; // placeholder
+const API_AI_SUGGESTION = "/api/finished/link/monitor/ai-suggestion"; // AI建议接口
 
 function showLoader(text = "加载中..."): LoadingInstance {
   return ElLoading.service({ lock: true, text, background: "rgba(0,0,0,0.2)" });
@@ -50,6 +95,43 @@ function followTimeText(id: string) {
   return followState.value[id]?.time ?? "";
 }
 
+/** 格式化数字为最多2位小数（去掉末尾的0） */
+function formatNumber(num: number): string {
+  return parseFloat(num.toFixed(2)).toString();
+}
+
+/** 格式化数字为最多2位小数并添加千分位分隔符 */
+function formatNumberWithLocale(num: number): string {
+  return parseFloat(num.toFixed(2)).toLocaleString();
+}
+
+/** 滑动窗口配置 */
+const WINDOWS = [1, 3, 7, 15, 30];
+
+/** 窗口颜色映射 */
+const WINDOW_COLORS: Record<number, string> = {
+  1: "#ef4444", // 红色 - 1天（最紧急）
+  3: "#f97316", // 橙色 - 3天（短期）
+  7: "#eab308", // 黄色 - 7天（中期）
+  15: "#3b82f6", // 蓝色 - 15天（中长期）
+  30: "#1e40af" // 深蓝色 - 30天（长期）
+};
+
+/** 变化等级颜色 */
+const levelColors: Record<ChangeLevel, string> = {
+  极小: "#6b7280",
+  轻微: "#10b981",
+  一般: "#f59e0b",
+  明显: "#f97316",
+  剧烈: "#ef4444"
+};
+
+/** 方向颜色 */
+const directionColors = {
+  "+": "#10b981",
+  "-": "#ef4444"
+};
+
 function loadMockData() {
   products.value = [
     {
@@ -57,72 +139,223 @@ function loadMockData() {
       name: "成品 — 舒适运动鞋",
       image: "https://via.placeholder.com/120?text=SKU-1001",
       visitorsAvg: [4200, 4500, 4700, 4900, 5100],
-      visitorsStd: [200, 210, 180, 150, 120],
+      visitorsVolatility: [
+        { window: 1, direction: "+", strength: 21.4, level: "一般" },
+        { window: 3, direction: "+", strength: 18.6, level: "轻微" },
+        { window: 7, direction: "+", strength: 15.2, level: "轻微" },
+        { window: 15, direction: "+", strength: 12.3, level: "轻微" },
+        { window: 30, direction: "+", strength: 8.5, level: "极小" }
+      ],
       adCostAvg: [1200.5, 1400.2, 1500.3, 1600.0, 1700.9],
-      adCostStd: [150.3, 120.5, 110.2, 90.1, 80.0],
+      adCostVolatility: [
+        { window: 1, direction: "+", strength: 15.3, level: "轻微" },
+        { window: 3, direction: "+", strength: 12.8, level: "轻微" },
+        { window: 7, direction: "+", strength: 10.5, level: "轻微" },
+        { window: 15, direction: "+", strength: 8.1, level: "极小" },
+        { window: 30, direction: "+", strength: 5.2, level: "极小" }
+      ],
       salesAvg: [32000, 33000, 34000, 35000, 36000],
-      salesStd: [1200, 1100, 900, 800, 700],
+      salesVolatility: [
+        { window: 1, direction: "+", strength: 16.2, level: "轻微" },
+        { window: 3, direction: "+", strength: 13.7, level: "轻微" },
+        { window: 7, direction: "+", strength: 11.5, level: "轻微" },
+        { window: 15, direction: "+", strength: 9.2, level: "极小" },
+        { window: 30, direction: "+", strength: 6.8, level: "极小" }
+      ],
       warningLevel: "正常",
-      warningMsg: "指标均在正常区间"
+      warningMessages: []
     },
     {
       id: "SKU-2002",
       name: "成品 — 高端皮带",
       image: "https://via.placeholder.com/120?text=SKU-2002",
       visitorsAvg: [800, 760, 700, 650, 620],
-      visitorsStd: [90, 85, 80, 70, 60],
+      visitorsVolatility: [
+        { window: 1, direction: "-", strength: 22.5, level: "一般" },
+        { window: 3, direction: "-", strength: 35.5, level: "一般" },
+        { window: 7, direction: "-", strength: 25.0, level: "一般" },
+        { window: 15, direction: "-", strength: 12.5, level: "轻微" },
+        { window: 30, direction: "-", strength: 5.0, level: "极小" }
+      ],
       adCostAvg: [900, 880, 860, 840, 820],
-      adCostStd: [200, 220, 240, 260, 280],
+      adCostVolatility: [
+        { window: 1, direction: "-", strength: 11.1, level: "轻微" },
+        { window: 3, direction: "-", strength: 8.9, level: "极小" },
+        { window: 7, direction: "-", strength: 6.7, level: "极小" },
+        { window: 15, direction: "-", strength: 4.4, level: "极小" },
+        { window: 30, direction: "-", strength: 2.2, level: "极小" }
+      ],
       salesAvg: [5000, 4800, 4500, 4200, 4000],
-      salesStd: [400, 420, 450, 480, 500],
+      salesVolatility: [
+        { window: 1, direction: "-", strength: 20.0, level: "一般" },
+        { window: 3, direction: "-", strength: 30.0, level: "明显" },
+        { window: 7, direction: "-", strength: 20.0, level: "一般" },
+        { window: 15, direction: "-", strength: 10.0, level: "轻微" },
+        { window: 30, direction: "-", strength: 4.0, level: "极小" }
+      ],
       warningLevel: "轻微",
-      warningMsg: "近1/3天访客下降，建议关注"
+      warningMessages: ["近1/3天访客下降，建议关注"]
     },
     {
       id: "SKU-3003",
       name: "成品 — 电子秤（热销）",
       image: "https://via.placeholder.com/120?text=SKU-3003",
       visitorsAvg: [12000, 12500, 13000, 13500, 14000],
-      visitorsStd: [600, 620, 630, 640, 650],
+      visitorsVolatility: [
+        { window: 1, direction: "+", strength: 16.7, level: "轻微" },
+        { window: 3, direction: "+", strength: 18.7, level: "轻微" },
+        { window: 7, direction: "+", strength: 12.5, level: "轻微" },
+        { window: 15, direction: "+", strength: 8.3, level: "极小" },
+        { window: 30, direction: "+", strength: 4.2, level: "极小" }
+      ],
       adCostAvg: [5000, 5200, 5400, 5600, 5800],
-      adCostStd: [800, 820, 840, 860, 880],
+      adCostVolatility: [
+        { window: 1, direction: "+", strength: 20.0, level: "一般" },
+        { window: 3, direction: "+", strength: 16.0, level: "轻微" },
+        { window: 7, direction: "+", strength: 12.0, level: "轻微" },
+        { window: 15, direction: "+", strength: 8.0, level: "极小" },
+        { window: 30, direction: "+", strength: 4.0, level: "极小" }
+      ],
       salesAvg: [80000, 82000, 84000, 86000, 88000],
-      salesStd: [2000, 2100, 2200, 2300, 2400],
+      salesVolatility: [
+        { window: 1, direction: "+", strength: 10.0, level: "轻微" },
+        { window: 3, direction: "+", strength: 10.0, level: "轻微" },
+        { window: 7, direction: "+", strength: 7.5, level: "极小" },
+        { window: 15, direction: "+", strength: 5.0, level: "极小" },
+        { window: 30, direction: "+", strength: 2.5, level: "极小" }
+      ],
       warningLevel: "一般",
-      warningMsg: "广告费用波动较大，ROI 下降"
+      warningMessages: [
+        "广告费用波动较大，ROI 下降",
+        "访客数波动较大，趋势上升，变化强度45.20%，需要关注趋势变化"
+      ]
     },
     {
       id: "SKU-4004",
       name: "成品 — 夏季连衣裙",
       image: null,
       visitorsAvg: [300, 280, 250, 220, 200],
-      visitorsStd: [30, 28, 25, 22, 20],
+      visitorsVolatility: [
+        { window: 1, direction: "-", strength: 33.3, level: "明显" },
+        { window: 3, direction: "-", strength: 50.0, level: "明显" },
+        { window: 7, direction: "-", strength: 33.3, level: "明显" },
+        { window: 15, direction: "-", strength: 16.7, level: "轻微" },
+        { window: 30, direction: "-", strength: 6.7, level: "极小" }
+      ],
       adCostAvg: [50, 45, 40, 35, 30],
-      adCostStd: [5, 6, 7, 8, 9],
+      adCostVolatility: [
+        { window: 1, direction: "-", strength: 40.0, level: "明显" },
+        { window: 3, direction: "-", strength: 40.0, level: "明显" },
+        { window: 7, direction: "-", strength: 30.0, level: "明显" },
+        { window: 15, direction: "-", strength: 20.0, level: "一般" },
+        { window: 30, direction: "-", strength: 10.0, level: "轻微" }
+      ],
       salesAvg: [1200, 1100, 1000, 900, 800],
-      salesStd: [80, 85, 90, 95, 100],
+      salesVolatility: [
+        { window: 1, direction: "-", strength: 33.3, level: "明显" },
+        { window: 3, direction: "-", strength: 50.0, level: "明显" },
+        { window: 7, direction: "-", strength: 33.3, level: "明显" },
+        { window: 15, direction: "-", strength: 16.7, level: "轻微" },
+        { window: 30, direction: "-", strength: 8.3, level: "极小" }
+      ],
       warningLevel: "严重",
-      warningMsg: "流量与转化骤降，需立刻处理"
+      warningMessages: [
+        "流量与转化骤降，需立刻处理",
+        "销售额波动剧烈，趋势下降，变化强度78.50%，风险较高，建议及时处理"
+      ]
     }
   ];
 }
 
 async function fetchData() {
+  if (!selectedShop.value) {
+    ElMessage.warning("请先选择店铺");
+    return;
+  }
+
   loading.value = true;
   const loader = showLoader("拉取数据...");
   try {
-    const res = await fetch(API_LIST);
+    // 将店铺ID和店铺名称作为查询参数传递
+    const shopOption = shopOptions.find(
+      opt => opt.value === selectedShop.value
+    );
+    if (!shopOption) {
+      throw new Error("店铺信息不存在");
+    }
+    const url = new URL(API_LIST, window.location.origin);
+    url.searchParams.append("shopID", selectedShop.value);
+    url.searchParams.append("shopName", shopOption.label);
+    url.searchParams.append("date", selectedDate.value);
+    const res = await fetch(url.toString());
     if (!res.ok) throw new Error("fetch failed");
-    const data = await res.json();
-    products.value = data || [];
+    const { data } = await res.json();
+    // 规范化数据，确保每个产品都有必要的字段
+    products.value = (data || []).map((item: ProductCard) => ({
+      ...item,
+      visitorsVolatility: item.visitorsVolatility || [],
+      adCostVolatility: item.adCostVolatility || [],
+      salesVolatility: item.salesVolatility || [],
+      warningMessages: item.warningMessages || []
+    }));
+    // 数据加载后重置到第一页
+    currentPage.value = 1;
   } catch {
     loadMockData();
     ElMessage.info("使用本地示例数据（后端接口未就绪）");
+    // 数据加载后重置到第一页
+    currentPage.value = 1;
   } finally {
     loader.close();
     loading.value = false;
   }
 }
+
+/** 获取AI建议 */
+async function getAISuggestion(productId: string, productName: string) {
+  currentProductId.value = productId;
+  aiSuggestionDialog.value = true;
+  aiSuggestionContent.value = "";
+  aiSuggestionLoading.value = true;
+
+  try {
+    const shopOption = shopOptions.find(
+      opt => opt.value === selectedShop.value
+    );
+    if (!shopOption) {
+      throw new Error("店铺信息不存在");
+    }
+
+    const url = new URL(API_AI_SUGGESTION, window.location.origin);
+    url.searchParams.append("shopID", selectedShop.value);
+    url.searchParams.append("shopName", shopOption.label);
+    url.searchParams.append("date", selectedDate.value);
+    url.searchParams.append("productID", productId);
+    url.searchParams.append("productName", productName);
+
+    const res = await fetch(url.toString());
+    if (!res.ok) throw new Error("fetch failed");
+    const result = await res.json();
+    aiSuggestionContent.value =
+      result.data?.suggestion || result.suggestion || "暂无建议";
+  } catch (error) {
+    console.error("获取AI建议失败:", error);
+    ElMessage.error("获取AI建议失败，请稍后重试");
+    aiSuggestionContent.value = "获取AI建议失败，请稍后重试";
+  } finally {
+    aiSuggestionLoading.value = false;
+  }
+}
+
+/** 获取当天日期字符串（用于限制日期选择器） */
+function getTodayDateString(): string {
+  return dayjs().format("YYYY-MM-DD");
+}
+
+// 监听店铺变化，重置分页
+watch(selectedShop, () => {
+  currentPage.value = 1;
+});
 
 onMounted(() => {
   fetchData();
@@ -132,6 +365,26 @@ onMounted(() => {
 <template>
   <div class="finished-monitor-page">
     <div class="controls">
+      <el-select
+        v-model="selectedShop"
+        placeholder="选择店铺"
+        style="width: 200px; margin-right: 12px"
+      >
+        <el-option
+          v-for="item in shopOptions"
+          :key="item.value"
+          :label="item.label"
+          :value="item.value"
+        />
+      </el-select>
+      <el-date-picker
+        v-model="selectedDate"
+        type="date"
+        placeholder="选择日期"
+        value-format="YYYY-MM-DD"
+        :disabled-date="(date: Date) => date > new Date()"
+        style="width: 200px; margin-right: 12px"
+      />
       <el-button
         type="primary"
         :loading="loading"
@@ -143,7 +396,7 @@ onMounted(() => {
 
     <div class="cards">
       <el-card
-        v-for="p in products"
+        v-for="p in paginatedProducts"
         :key="p.id"
         class="prod-card"
         :class="{ 'prod-followed': isFollowed(p.id) }"
@@ -171,12 +424,33 @@ onMounted(() => {
               >
                 {{ p.warningLevel }}
               </el-tag>
-              <span class="warn-msg">{{ p.warningMsg }}</span>
+            </div>
+            <div
+              v-if="p.warningMessages && p.warningMessages.length > 0"
+              class="warning-messages"
+            >
+              <div
+                v-for="(msg, idx) in p.warningMessages"
+                :key="idx"
+                class="warning-message-item"
+              >
+                <el-icon class="warning-icon"><Warning /></el-icon>
+                <span>{{ msg }}</span>
+              </div>
             </div>
           </div>
 
           <!-- 右侧关注开关 -->
           <div class="follow-area">
+            <el-button
+              type="primary"
+              size="small"
+              :loading="aiSuggestionLoading && currentProductId === p.id"
+              style="margin-right: 12px"
+              @click="getAISuggestion(p.id, p.name)"
+            >
+              获取AI建议
+            </el-button>
             <el-switch
               :model-value="isFollowed(p.id)"
               active-text="已关注"
@@ -207,79 +481,271 @@ onMounted(() => {
 
         <div class="metrics">
           <div class="metric-block">
-            <div class="metric-title">日均访客</div>
+            <div class="metric-title">日均访客(30/15/7/3/1日)</div>
             <div class="metric-values">
               <span
                 v-for="(v, i) in p.visitorsAvg"
                 :key="i"
                 :class="['metric-value', 'c' + i]"
-                >{{ v }}</span
+                >{{ formatNumber(v) }}</span
               >
             </div>
           </div>
 
           <div class="metric-block">
-            <div class="metric-title">访客数标准差</div>
-            <div class="metric-values">
+            <div class="metric-title">访客数滑动窗口波动率</div>
+            <div class="metric-values volatility-values">
               <span
-                v-for="(v, i) in p.visitorsStd"
-                :key="i"
-                :class="['metric-value', 'c' + i]"
-                >{{ v }}</span
+                v-for="window in WINDOWS"
+                :key="window"
+                class="volatility-item"
+                :style="{
+                  borderColor: WINDOW_COLORS[window],
+                  backgroundColor: WINDOW_COLORS[window] + '10'
+                }"
               >
+                <template
+                  v-if="
+                    p.visitorsVolatility &&
+                    p.visitorsVolatility.find(v => v.window === window)
+                  "
+                >
+                  <template
+                    v-for="vol in p.visitorsVolatility.filter(
+                      v => v.window === window
+                    )"
+                    :key="vol.window"
+                  >
+                    <span
+                      class="volatility-window"
+                      :style="{ color: WINDOW_COLORS[window] }"
+                    >
+                      {{ window }}天
+                    </span>
+                    <span
+                      class="volatility-direction"
+                      :style="{
+                        color: directionColors[vol.direction]
+                      }"
+                    >
+                      {{ vol.direction === "+" ? "↑" : "↓" }}
+                    </span>
+                    <span
+                      class="volatility-strength"
+                      :style="{
+                        color: directionColors[vol.direction]
+                      }"
+                    >
+                      {{ vol.strength.toFixed(2) }}%
+                    </span>
+                    <span
+                      class="volatility-level"
+                      :style="{
+                        color: levelColors[vol.level],
+                        backgroundColor:
+                          (levelColors[vol.level] || '#6b7280') + '20'
+                      }"
+                    >
+                      [{{ vol.level }}]
+                    </span>
+                  </template>
+                </template>
+              </span>
             </div>
           </div>
 
           <div class="metric-block">
-            <div class="metric-title">日均广告花费</div>
+            <div class="metric-title">日均广告花费(30/15/7/3/1日)</div>
             <div class="metric-values">
               <span
                 v-for="(v, i) in p.adCostAvg"
                 :key="i"
                 :class="['metric-value', 'c' + i]"
-                >¥{{ v.toFixed(2) }}</span
+                >{{ formatNumber(v) }}</span
               >
             </div>
           </div>
 
           <div class="metric-block">
-            <div class="metric-title">广告花费标准差</div>
-            <div class="metric-values">
+            <div class="metric-title">广告花费滑动窗口波动率</div>
+            <div class="metric-values volatility-values">
               <span
-                v-for="(v, i) in p.adCostStd"
-                :key="i"
-                :class="['metric-value', 'c' + i]"
-                >¥{{ v.toFixed(2) }}</span
+                v-for="window in WINDOWS"
+                :key="window"
+                class="volatility-item"
+                :style="{
+                  borderColor: WINDOW_COLORS[window],
+                  backgroundColor: WINDOW_COLORS[window] + '10'
+                }"
               >
+                <template
+                  v-if="
+                    p.adCostVolatility &&
+                    p.adCostVolatility.find(v => v.window === window)
+                  "
+                >
+                  <template
+                    v-for="vol in p.adCostVolatility.filter(
+                      v => v.window === window
+                    )"
+                    :key="vol.window"
+                  >
+                    <span
+                      class="volatility-window"
+                      :style="{ color: WINDOW_COLORS[window] }"
+                    >
+                      {{ window }}天
+                    </span>
+                    <span
+                      class="volatility-direction"
+                      :style="{
+                        color: directionColors[vol.direction]
+                      }"
+                    >
+                      {{ vol.direction === "+" ? "↑" : "↓" }}
+                    </span>
+                    <span
+                      class="volatility-strength"
+                      :style="{
+                        color: directionColors[vol.direction]
+                      }"
+                    >
+                      {{ vol.strength.toFixed(2) }}%
+                    </span>
+                    <span
+                      class="volatility-level"
+                      :style="{
+                        color: levelColors[vol.level],
+                        backgroundColor:
+                          (levelColors[vol.level] || '#6b7280') + '20'
+                      }"
+                    >
+                      [{{ vol.level }}]
+                    </span>
+                  </template>
+                </template>
+              </span>
             </div>
           </div>
 
           <div class="metric-block">
-            <div class="metric-title">日均销售额</div>
+            <div class="metric-title">日均销售额(30/15/7/3/1日)</div>
             <div class="metric-values">
               <span
                 v-for="(v, i) in p.salesAvg"
                 :key="i"
                 :class="['metric-value', 'c' + i]"
-                >¥{{ (v as number).toLocaleString() }}</span
+                >{{ formatNumberWithLocale(v) }}</span
               >
             </div>
           </div>
 
           <div class="metric-block">
-            <div class="metric-title">销售额标准差</div>
-            <div class="metric-values">
+            <div class="metric-title">销售额滑动窗口波动率</div>
+            <div class="metric-values volatility-values">
               <span
-                v-for="(v, i) in p.salesStd"
-                :key="i"
-                :class="['metric-value', 'c' + i]"
-                >¥{{ (v as number).toLocaleString() }}</span
+                v-for="window in WINDOWS"
+                :key="window"
+                class="volatility-item"
+                :style="{
+                  borderColor: WINDOW_COLORS[window],
+                  backgroundColor: WINDOW_COLORS[window] + '10'
+                }"
               >
+                <template
+                  v-if="
+                    p.salesVolatility &&
+                    p.salesVolatility.find(v => v.window === window)
+                  "
+                >
+                  <template
+                    v-for="vol in p.salesVolatility.filter(
+                      v => v.window === window
+                    )"
+                    :key="vol.window"
+                  >
+                    <span
+                      class="volatility-window"
+                      :style="{ color: WINDOW_COLORS[window] }"
+                    >
+                      {{ window }}天
+                    </span>
+                    <span
+                      class="volatility-direction"
+                      :style="{
+                        color: directionColors[vol.direction]
+                      }"
+                    >
+                      {{ vol.direction === "+" ? "↑" : "↓" }}
+                    </span>
+                    <span
+                      class="volatility-strength"
+                      :style="{
+                        color: directionColors[vol.direction]
+                      }"
+                    >
+                      {{ vol.strength.toFixed(2) }}%
+                    </span>
+                    <span
+                      class="volatility-level"
+                      :style="{
+                        color: levelColors[vol.level],
+                        backgroundColor:
+                          (levelColors[vol.level] || '#6b7280') + '20'
+                      }"
+                    >
+                      [{{ vol.level }}]
+                    </span>
+                  </template>
+                </template>
+              </span>
             </div>
           </div>
         </div>
       </el-card>
     </div>
+
+    <!-- 分页组件 -->
+    <div class="pagination-wrapper">
+      <el-pagination
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :page-sizes="[10, 20, 50, 100]"
+        :total="total"
+        layout="total, sizes, prev, pager, next, jumper"
+        @size-change="() => (currentPage = 1)"
+      />
+    </div>
+
+    <!-- AI建议对话框 -->
+    <el-dialog
+      v-model="aiSuggestionDialog"
+      title="AI建议"
+      width="600px"
+      :close-on-click-modal="false"
+    >
+      <div v-if="aiSuggestionLoading" style="text-align: center; padding: 20px">
+        <el-icon class="is-loading" style="font-size: 24px">
+          <Loading />
+        </el-icon>
+        <p style="margin-top: 10px">AI正在分析中...</p>
+      </div>
+      <div
+        v-else
+        style="
+          white-space: pre-wrap;
+          line-height: 1.6;
+          color: #303133;
+          max-height: 400px;
+          overflow-y: auto;
+        "
+      >
+        {{ aiSuggestionContent || "暂无建议" }}
+      </div>
+      <template #footer>
+        <el-button @click="aiSuggestionDialog = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -301,6 +767,14 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  margin-bottom: 20px;
+}
+
+.pagination-wrapper {
+  display: flex;
+  justify-content: right;
+  margin-top: 20px;
+  padding: 20px 0;
 }
 
 .prod-card {
@@ -360,6 +834,34 @@ onMounted(() => {
 .warn-msg {
   color: #606266;
   font-size: 13px;
+}
+
+/* 警告信息列表 */
+.warning-messages {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.warning-message-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #fff7e6;
+  border-left: 3px solid #f59e0b;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #8b6914;
+  line-height: 1.5;
+}
+
+.warning-icon {
+  color: #f59e0b;
+  font-size: 16px;
+  margin-top: 2px;
+  flex-shrink: 0;
 }
 
 /* 右侧关注区域，固定靠右显示 */
@@ -436,6 +938,52 @@ onMounted(() => {
 }
 .metric-value.c4 {
   background: linear-gradient(135deg, #6f42c1 0%, #8a6fe6 100%);
+}
+
+/* 滑动窗口波动率显示样式 */
+.volatility-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.volatility-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: #ffffff;
+  border: 2px solid;
+  border-radius: 6px;
+  font-size: 13px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.volatility-window {
+  font-weight: 700;
+  font-size: 12px;
+  min-width: 32px;
+}
+
+.volatility-direction {
+  font-size: 16px;
+  font-weight: 700;
+  min-width: 20px;
+  text-align: center;
+}
+
+.volatility-strength {
+  font-weight: 600;
+  font-size: 13px;
+  min-width: 55px;
+}
+
+.volatility-level {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+  margin-left: 2px;
 }
 
 /* 响应式 */

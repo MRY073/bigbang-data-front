@@ -68,6 +68,14 @@ const pageLoading = ref(false);
 const filterStage = ref<FilterStageType>("all");
 const selectedShop = ref<string>("1489850435"); // 默认选择第一个店铺
 
+// 产品筛选条件（输入框的值，不触发筛选）
+const productIdFilter = ref<string>("");
+const productNameFilter = ref<string>("");
+
+// 实际应用的筛选条件（用于筛选逻辑）
+const appliedProductIdFilter = ref<string>("");
+const appliedProductNameFilter = ref<string>("");
+
 // 分页相关
 const currentPage = ref(1); // 当前页码
 const pageSize = ref(20); // 每页显示数量
@@ -490,7 +498,7 @@ async function saveProductStages(productId: string) {
   }
 }
 
-/** 过滤后的产品列表（先过滤阶段，再分页） */
+/** 过滤后的产品列表（先过滤阶段和产品ID/名称，再分页） */
 const filteredProducts = computed(() => {
   // 先根据阶段筛选
   let filtered: ProductRow[];
@@ -509,6 +517,22 @@ const filteredProducts = computed(() => {
     });
   }
 
+  // 根据产品ID筛选
+  if (appliedProductIdFilter.value.trim()) {
+    const idFilter = appliedProductIdFilter.value.trim().toLowerCase();
+    filtered = filtered.filter(row =>
+      row.product_id.toLowerCase().includes(idFilter)
+    );
+  }
+
+  // 根据产品名称筛选
+  if (appliedProductNameFilter.value.trim()) {
+    const nameFilter = appliedProductNameFilter.value.trim().toLowerCase();
+    filtered = filtered.filter(row =>
+      row.product_name.toLowerCase().includes(nameFilter)
+    );
+  }
+
   // 然后进行分页
   const start = (currentPage.value - 1) * pageSize.value;
   const end = start + pageSize.value;
@@ -517,16 +541,39 @@ const filteredProducts = computed(() => {
 
 /** 过滤后的总数（用于分页显示） */
 const filteredTotal = computed(() => {
-  if (filterStage.value === "all") return products.value.length;
-  const stageType = filterStage.value as StageType;
-  return products.value.filter(row => {
-    const stage = row[
-      `${stageType}_stage` as keyof ProductRow
-    ] as StageTimeRange;
-    const hasRange = stage?.start_time && stage?.end_time;
-    const isCurrent = row.currentStage === stageType;
-    return hasRange || isCurrent;
-  }).length;
+  // 先根据阶段筛选
+  let filtered: ProductRow[];
+  if (filterStage.value === "all") {
+    filtered = products.value;
+  } else {
+    const stageType = filterStage.value as StageType;
+    filtered = products.value.filter(row => {
+      const stage = row[
+        `${stageType}_stage` as keyof ProductRow
+      ] as StageTimeRange;
+      const hasRange = stage?.start_time && stage?.end_time;
+      const isCurrent = row.currentStage === stageType;
+      return hasRange || isCurrent;
+    });
+  }
+
+  // 根据产品ID筛选
+  if (appliedProductIdFilter.value.trim()) {
+    const idFilter = appliedProductIdFilter.value.trim().toLowerCase();
+    filtered = filtered.filter(row =>
+      row.product_id.toLowerCase().includes(idFilter)
+    );
+  }
+
+  // 根据产品名称筛选
+  if (appliedProductNameFilter.value.trim()) {
+    const nameFilter = appliedProductNameFilter.value.trim().toLowerCase();
+    filtered = filtered.filter(row =>
+      row.product_name.toLowerCase().includes(nameFilter)
+    );
+  }
+
+  return filtered.length;
 });
 
 /** 处理页码变化 */
@@ -557,6 +604,27 @@ async function copyToClipboard(text: string) {
   } catch {
     ElMessage.error("复制失败");
   }
+}
+
+/** 执行筛选 */
+function handleFilter() {
+  // 将输入框的值应用到筛选条件
+  appliedProductIdFilter.value = productIdFilter.value;
+  appliedProductNameFilter.value = productNameFilter.value;
+  // 重置到第一页
+  currentPage.value = 1;
+}
+
+/** 取消筛选 */
+function handleClearFilter() {
+  // 清空输入框的值
+  productIdFilter.value = "";
+  productNameFilter.value = "";
+  // 清空应用的筛选条件
+  appliedProductIdFilter.value = "";
+  appliedProductNameFilter.value = "";
+  // 重置到第一页
+  currentPage.value = 1;
 }
 </script>
 
@@ -598,6 +666,28 @@ async function copyToClipboard(text: string) {
             @click="fetchData"
             >拉取数据</el-button
           >
+        </div>
+      </div>
+
+      <!-- 产品筛选区域 -->
+      <div class="filter-section">
+        <div class="filter-inputs">
+          <el-input
+            v-model="productIdFilter"
+            placeholder="产品ID"
+            clearable
+            style="width: 200px; margin-right: 12px"
+          />
+          <el-input
+            v-model="productNameFilter"
+            placeholder="产品名称"
+            clearable
+            style="width: 200px; margin-right: 12px"
+          />
+        </div>
+        <div class="filter-buttons">
+          <el-button type="primary" @click="handleFilter">筛选</el-button>
+          <el-button @click="handleClearFilter">取消筛选</el-button>
         </div>
       </div>
 
@@ -901,6 +991,29 @@ async function copyToClipboard(text: string) {
 }
 
 .actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* 产品筛选区域 */
+.filter-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 12px;
+  background: #f5f7fa;
+  border-radius: 6px;
+}
+
+.filter-inputs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-buttons {
   display: flex;
   gap: 8px;
 }
