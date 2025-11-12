@@ -12,6 +12,7 @@ import type {
 import { stringify } from "qs";
 // import { getToken, formatToken } from "@/utils/auth";
 import { useUserStoreHook } from "@/store/modules/user";
+import { processApiUrl } from "./apiConfig";
 
 // 相关配置请参考：www.axios-js.com/zh-cn/docs/#axios-request-config-1
 const defaultConfig: AxiosRequestConfig = {
@@ -61,9 +62,11 @@ class PureHttp {
   private httpInterceptorsRequest(): void {
     PureHttp.axiosInstance.interceptors.request.use(
       config => {
-        // 生产环境去掉 /api 前缀（开发环境通过 vite proxy 代理处理）
-        if (import.meta.env.PROD && config.url?.startsWith("/api")) {
-          config.url = config.url.replace(/^\/api/, "");
+        // 根据环境自动处理 /api 前缀
+        // 开发环境：保留 /api（通过 vite proxy 代理）
+        // 生产环境：去掉 /api（直接请求后端）
+        if (config.url) {
+          config.url = processApiUrl(config.url);
         }
 
         // 如果是 FormData，删除默认的 Content-Type，让浏览器自动设置（包含 boundary）
