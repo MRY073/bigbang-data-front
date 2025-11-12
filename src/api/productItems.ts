@@ -72,3 +72,16 @@ export const deleteProductItem = (
   return http.request<ApiResponse<void>>("delete", `/api/product-items/${id}`);
 };
 
+// 获取自定义分类选项
+export const getCustomCategoryOptions = (params?: {
+  shopID?: string;
+}): Promise<ApiResponse<string[]>> => {
+  return http.request<ApiResponse<string[]>>(
+    "get",
+    "/api/product-items/custom-categories",
+    {
+      params
+    }
+  );
+};
+

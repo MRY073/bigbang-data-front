@@ -2,6 +2,8 @@
 import { ref, computed, onMounted, shallowRef, watch } from "vue";
 import { ElMessage, ElLoading } from "element-plus";
 import type { LoadingInstance } from "element-plus";
+import { getProducts, updateProductStage } from "@/api/products";
+import { getCustomCategoryOptions } from "@/api/productItems";
 
 defineOptions({ name: "ProductStageManual" });
 
@@ -104,10 +106,6 @@ const shopOptions = [
   }
 ];
 
-// 接口地址
-const API_GET_PRODUCTS = "/api/products";
-const API_UPDATE_STAGE = "/api/products/stage";
-const API_GET_CUSTOM_CATEGORY_OPTIONS = "/api/product-items/custom-categories";
 const categoryFields: Array<
   | "custom_category_1"
   | "custom_category_2"
@@ -176,20 +174,11 @@ function extractCategoriesFromProducts(items: BackendProduct[]): string[] {
 
 async function fetchCustomCategoryOptions() {
   try {
-    const url = new URL(
-      API_GET_CUSTOM_CATEGORY_OPTIONS,
-      window.location.origin
-    );
+    const params: any = {};
     if (selectedShop.value) {
-      url.searchParams.append("shopID", selectedShop.value);
+      params.shopID = selectedShop.value;
     }
-    const response = await fetch(url.toString(), {
-      method: "GET"
-    });
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    const result = await response.json();
+    const result = await getCustomCategoryOptions(params);
     if (result.success && Array.isArray(result.data)) {
       appendCustomCategoryOptions(normalizeCategoryPayload(result.data));
     } else {
@@ -408,22 +397,15 @@ async function fetchData() {
     if (!shopOption) {
       throw new Error("店铺信息不存在");
     }
-    const url = new URL(API_GET_PRODUCTS, window.location.origin);
-    url.searchParams.append("shopID", selectedShop.value);
-    url.searchParams.append("shopName", shopOption.label);
+    const params: any = {
+      shopID: selectedShop.value,
+      shopName: shopOption.label
+    };
     if (selectedCustomCategory.value) {
-      url.searchParams.append("customCategory", selectedCustomCategory.value);
-    }
-    const requestUrl = url.toString();
-
-    const res = await fetch(requestUrl);
-    if (!res.ok) {
-      const errorText = await res.text();
-      console.error("HTTP错误响应内容:", errorText);
-      throw new Error(`HTTP error! status: ${res.status}`);
+      params.customCategory = selectedCustomCategory.value;
     }
 
-    const result = await res.json();
+    const result = await getProducts(params);
     if (result.success && result.data) {
       initProducts(result.data);
       appendCustomCategoryOptions(extractCategoriesFromProducts(result.data));
@@ -469,26 +451,14 @@ async function updateSingleStage(
   const startTimeIso = dateTimeToIso(startTime);
   const endTimeIso = dateTimeToIso(endTime);
 
-  const response = await fetch(API_UPDATE_STAGE, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      product_id: productId,
-      shopID: selectedShop.value,
-      shopName: shopOption.label,
-      stage_type: stageType,
-      start_time: startTimeIso,
-      end_time: endTimeIso
-    })
+  const result = await updateProductStage({
+    product_id: productId,
+    shopID: selectedShop.value,
+    shopName: shopOption.label,
+    stage_type: stageType,
+    start_time: startTimeIso,
+    end_time: endTimeIso
   });
-
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
-  }
-
-  const result = await response.json();
 
   if (!result.success) {
     throw new Error(result.error || result.message || "更新失败");
@@ -593,9 +563,7 @@ const filteredAndSortedProducts = computed(() => {
   if (selectedCustomCategory.value) {
     const selected = selectedCustomCategory.value.trim();
     filtered = filtered.filter(row =>
-      row.customCategories.some(category =>
-        category.trim() === selected
-      )
+      row.customCategories.some(category => category.trim() === selected)
     );
   }
 

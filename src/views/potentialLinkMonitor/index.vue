@@ -4,6 +4,11 @@ import { ElMessage, ElLoading, ElDialog } from "element-plus";
 import { Loading, Warning } from "@element-plus/icons-vue";
 import type { LoadingInstance } from "element-plus";
 import dayjs from "dayjs";
+import {
+  getPotentialLinkMonitorList,
+  getPotentialLinkMonitorAISuggestion
+} from "@/api/monitor";
+import { getCustomCategoryOptions } from "@/api/productItems";
 
 defineOptions({ name: "PotentialLinkMonitor" });
 
@@ -94,10 +99,6 @@ const shopOptions = [
     value: "1638595255"
   }
 ];
-
-const API_LIST = "/api/potential/link/monitor/list"; // placeholder
-const API_AI_SUGGESTION = "/api/potential/link/monitor/ai-suggestion"; // AI建议接口
-const API_GET_CUSTOM_CATEGORY_OPTIONS = "/api/product-items/custom-categories";
 
 // 自定义分类筛选
 const customCategoryOptions = ref<Array<{ label: string; value: string }>>([]);
@@ -331,41 +332,45 @@ async function fetchData() {
     if (!shopOption) {
       throw new Error("店铺信息不存在");
     }
-    const url = new URL(API_LIST, window.location.origin);
-    url.searchParams.append("shopID", selectedShop.value);
-    url.searchParams.append("shopName", shopOption.label);
-    url.searchParams.append("date", selectedDate.value);
+    const params: any = {
+      shopID: selectedShop.value,
+      shopName: shopOption.label,
+      date: selectedDate.value
+    };
     // 如果选择了自定义分类，添加到请求参数中
     if (selectedCustomCategory.value) {
-      url.searchParams.append("customCategory", selectedCustomCategory.value);
+      params.customCategory = selectedCustomCategory.value;
     }
-    const res = await fetch(url.toString());
-    if (!res.ok) throw new Error("fetch failed");
-    const { data } = await res.json();
-    // 规范化数据，确保每个产品都有必要的字段
-    products.value = (data || []).map((item: ProductCard) => ({
-      ...item,
-      visitorsVolatilityBaseline: item.visitorsVolatilityBaseline || [],
-      adCostVolatilityBaseline: item.adCostVolatilityBaseline || [],
-      salesVolatilityBaseline: item.salesVolatilityBaseline || [],
-      warningMessages: item.warningMessages || []
-    }));
-    // 从返回的数据中提取分类选项
-    if (data && Array.isArray(data)) {
-      const categories: string[] = [];
-      data.forEach((item: any) => {
-        categoryFields.forEach(field => {
-          const value = item[field];
-          if (typeof value === "string" && value.trim()) {
-            categories.push(value.trim());
-          }
+    const result = await getPotentialLinkMonitorList(params);
+    if (result.success && result.data) {
+      // 规范化数据，确保每个产品都有必要的字段
+      products.value = (result.data || []).map((item: ProductCard) => ({
+        ...item,
+        visitorsVolatilityBaseline: item.visitorsVolatilityBaseline || [],
+        adCostVolatilityBaseline: item.adCostVolatilityBaseline || [],
+        salesVolatilityBaseline: item.salesVolatilityBaseline || [],
+        warningMessages: item.warningMessages || []
+      }));
+      // 从返回的数据中提取分类选项
+      if (result.data && Array.isArray(result.data)) {
+        const categories: string[] = [];
+        result.data.forEach((item: any) => {
+          categoryFields.forEach(field => {
+            const value = item[field];
+            if (typeof value === "string" && value.trim()) {
+              categories.push(value.trim());
+            }
+          });
         });
-      });
-      appendCustomCategoryOptions([...new Set(categories)]);
+        appendCustomCategoryOptions([...new Set(categories)]);
+      }
+      // 数据加载后重置到第一页
+      currentPage.value = 1;
+    } else {
+      throw new Error(result.error || result.message || "查询失败");
     }
-    // 数据加载后重置到第一页
-    currentPage.value = 1;
-  } catch {
+  } catch (error: any) {
+    console.error("拉取数据失败:", error);
     loadMockData();
     ElMessage.info("使用本地示例数据（后端接口未就绪）");
     // 数据加载后重置到第一页
@@ -391,21 +396,22 @@ async function getAISuggestion(productId: string, productName: string) {
       throw new Error("店铺信息不存在");
     }
 
-    const url = new URL(API_AI_SUGGESTION, window.location.origin);
-    url.searchParams.append("shopID", selectedShop.value);
-    url.searchParams.append("shopName", shopOption.label);
-    url.searchParams.append("date", selectedDate.value);
-    url.searchParams.append("productID", productId);
-    url.searchParams.append("productName", productName);
+    const result = await getPotentialLinkMonitorAISuggestion({
+      shopID: selectedShop.value,
+      shopName: shopOption.label,
+      date: selectedDate.value,
+      productID: productId,
+      productName: productName
+    });
 
-    const res = await fetch(url.toString());
-    if (!res.ok) throw new Error("fetch failed");
-    const result = await res.json();
-    aiSuggestionContent.value =
-      result.data?.suggestion || result.suggestion || "暂无建议";
-  } catch (error) {
+    if (result.success && result.data) {
+      aiSuggestionContent.value = result.data.suggestion || "暂无建议";
+    } else {
+      throw new Error(result.error || result.message || "获取AI建议失败");
+    }
+  } catch (error: any) {
     console.error("获取AI建议失败:", error);
-    ElMessage.error("获取AI建议失败，请稍后重试");
+    ElMessage.error(error?.message || "获取AI建议失败，请稍后重试");
     aiSuggestionContent.value = "获取AI建议失败，请稍后重试";
   } finally {
     aiSuggestionLoading.value = false;
@@ -471,18 +477,9 @@ async function fetchCustomCategoryOptions() {
     return;
   }
   try {
-    const url = new URL(
-      API_GET_CUSTOM_CATEGORY_OPTIONS,
-      window.location.origin
-    );
-    url.searchParams.append("shopID", selectedShop.value);
-    const response = await fetch(url.toString(), {
-      method: "GET"
+    const result = await getCustomCategoryOptions({
+      shopID: selectedShop.value
     });
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    const result = await response.json();
     if (result.success && Array.isArray(result.data)) {
       appendCustomCategoryOptions(normalizeCategoryPayload(result.data));
     } else {

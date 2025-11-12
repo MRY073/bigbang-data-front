@@ -4,6 +4,7 @@ import { ElMessage, ElLoading, ElDialog, ElIcon } from "element-plus";
 import { Picture } from "@element-plus/icons-vue";
 import * as echarts from "echarts";
 import type { EChartsOption } from "echarts";
+import { getAdRatio, getAdTrend, getStageProducts } from "@/api/adAnalysis";
 
 defineOptions({ name: "AdAnalysis" });
 
@@ -84,13 +85,6 @@ const COLORS = {
   potential: "#E6A23C", // 潜力阶段-橙色
   abandoned: "#F56C6C", // 放弃阶段-红色
   other: "#909399" // 其他阶段-灰色
-};
-
-// API 端点
-const API = {
-  DAILY: "/api/ad-analysis/ad-ratio",
-  TREND: "/api/ad-analysis/ad-trend",
-  PRODUCTS: "/api/ad-analysis/stage-products" // 获取阶段商品列表
 };
 
 // 阶段名称映射
@@ -345,19 +339,18 @@ async function fetchDailyData() {
   const loader = ElLoading.service({ text: "加载数据..." });
 
   try {
-    const url = new URL(API.DAILY, window.location.origin);
-    url.searchParams.append("date", selectedDate.value);
-    url.searchParams.append("shopID", selectedShop.value);
     const shopOption = shopOptions.find(
       opt => opt.value === selectedShop.value
     );
-    if (shopOption) {
-      url.searchParams.append("shopName", shopOption.label);
+    if (!shopOption) {
+      throw new Error("店铺信息不存在");
     }
-    const res = await fetch(url.toString());
 
-    if (!res.ok) throw new Error("获取数据失败");
-    const result = await res.json();
+    const result = await getAdRatio({
+      date: selectedDate.value,
+      shopID: selectedShop.value,
+      shopName: shopOption.label
+    });
 
     if (!result.success || !result.data) {
       throw new Error(result.error || result.message || "查询失败");
@@ -412,18 +405,17 @@ async function fetchTrendData() {
   const loader = ElLoading.service({ text: "加载趋势数据..." });
 
   try {
-    const url = new URL(API.TREND, window.location.origin);
-    url.searchParams.append("shopID", selectedShop.value);
     const shopOption = shopOptions.find(
       opt => opt.value === selectedShop.value
     );
-    if (shopOption) {
-      url.searchParams.append("shopName", shopOption.label);
+    if (!shopOption) {
+      throw new Error("店铺信息不存在");
     }
-    const res = await fetch(url.toString());
 
-    if (!res.ok) throw new Error("获取趋势数据失败");
-    const result = await res.json();
+    const result = await getAdTrend({
+      shopID: selectedShop.value,
+      shopName: shopOption.label
+    });
 
     if (!result.success || !result.data) {
       throw new Error(result.error || result.message || "查询失败");
@@ -652,22 +644,19 @@ async function fetchStageProducts(stage: StageKey) {
   productList.value = [];
 
   try {
-    const url = new URL(API.PRODUCTS, window.location.origin);
-    url.searchParams.append("date", selectedDate.value);
-    url.searchParams.append("shopID", selectedShop.value);
-    url.searchParams.append("stage", STAGE_FIELD_MAP[stage]);
-
     const shopOption = shopOptions.find(
       opt => opt.value === selectedShop.value
     );
-    if (shopOption) {
-      url.searchParams.append("shopName", shopOption.label);
+    if (!shopOption) {
+      throw new Error("店铺信息不存在");
     }
 
-    const res = await fetch(url.toString());
-
-    if (!res.ok) throw new Error("获取商品列表失败");
-    const result = await res.json();
+    const result = await getStageProducts({
+      date: selectedDate.value,
+      shopID: selectedShop.value,
+      shopName: shopOption.label,
+      stage: STAGE_FIELD_MAP[stage]
+    });
 
     if (!result.success) {
       throw new Error(result.error || result.message || "查询失败");
