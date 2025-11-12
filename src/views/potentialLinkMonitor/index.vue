@@ -342,7 +342,7 @@ async function fetchData() {
       params.customCategory = selectedCustomCategory.value;
     }
     const result = await getPotentialLinkMonitorList(params);
-    if (result.success && result.data) {
+    if (result.code === 200 && result.data) {
       // 规范化数据，确保每个产品都有必要的字段
       products.value = (result.data || []).map((item: ProductCard) => ({
         ...item,
@@ -371,8 +371,8 @@ async function fetchData() {
     }
   } catch (error: any) {
     console.error("拉取数据失败:", error);
-    loadMockData();
-    ElMessage.info("使用本地示例数据（后端接口未就绪）");
+    // loadMockData();
+    // ElMessage.info("使用本地示例数据（后端接口未就绪）");
     // 数据加载后重置到第一页
     currentPage.value = 1;
   } finally {
