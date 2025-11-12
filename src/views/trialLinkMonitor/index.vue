@@ -2,28 +2,15 @@
 import { ref, onMounted } from "vue";
 import { ElMessage, ElLoading } from "element-plus";
 import type { LoadingInstance } from "element-plus";
+import {
+  getTestingMonitorProducts,
+  type TestingMonitorProduct
+} from "@/api/products";
 
 defineOptions({ name: "TrialLinkMonitor" });
 
-// 后端返回的商品数据结构
-type BackendProduct = {
-  product_id: string;
-  product_name: string;
-  product_image: string | null;
-  testing_stage_start: string | null; // 测款日期开始
-  total_visitors: number;
-  total_orders: number;
-};
-
-// 前端使用的商品数据
-type Product = {
-  product_id: string;
-  product_name: string;
-  product_image: string | null;
-  testing_stage_start: string | null; // 测款日期开始
-  total_visitors: number;
-  total_orders: number;
-};
+// 前端使用的商品数据（与 API 返回类型一致）
+type Product = TestingMonitorProduct;
 
 // 测款状态枚举
 type TestingStatus = "finished" | "watching" | "normal";
@@ -43,8 +30,6 @@ const shopOptions = [
     value: "1638595255"
   }
 ];
-
-const API_LIST = "/api/products/testing-monitor";
 
 function showLoader(text = "加载中..."): LoadingInstance {
   return ElLoading.service({ lock: true, text, background: "rgba(0,0,0,0.2)" });
@@ -297,14 +282,11 @@ async function fetchData() {
     if (!shopOption) {
       throw new Error("店铺信息不存在");
     }
-    const url = new URL(API_LIST, window.location.origin);
-    url.searchParams.append("shopID", selectedShop.value);
-    url.searchParams.append("shopName", shopOption.label);
-    const res = await fetch(url.toString());
-    if (!res.ok) {
-      throw new Error(`HTTP error! status: ${res.status}`);
-    }
-    const result = await res.json();
+
+    const result = await getTestingMonitorProducts({
+      shopID: selectedShop.value,
+      shopName: shopOption.label
+    });
 
     if (result.success && result.data) {
       // 直接使用后端返回的数据结构，并按状态排序
@@ -325,7 +307,8 @@ async function fetchData() {
     // 如果是网络错误，使用模拟数据
     if (
       error?.message?.includes("HTTP error") ||
-      error?.message?.includes("fetch")
+      error?.message?.includes("fetch") ||
+      error?.message?.includes("Network")
     ) {
       loadMockData();
       // 对模拟数据也进行排序

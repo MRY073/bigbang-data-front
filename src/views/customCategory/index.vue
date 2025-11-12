@@ -6,6 +6,8 @@ import { Edit, Refresh } from "@element-plus/icons-vue";
 import {
   updateProductItem,
   deleteProductItem,
+  getProductItems,
+  getCustomCategoryOptions,
   type ProductItem
 } from "@/api/productItems";
 
@@ -41,10 +43,6 @@ const total = ref(0);
 // 编辑状态映射（用于跟踪哪些字段正在编辑）
 const editingMap = ref<Record<string, Record<string, boolean>>>({});
 
-// 接口地址
-const API_GET_PRODUCTS = "/api/product-items";
-const API_GET_CUSTOM_CATEGORY_OPTIONS = "/api/product-items/custom-categories";
-
 // 自定义分类筛选
 const customCategoryOptions = ref<Array<{ label: string; value: string }>>([]);
 const selectedCustomCategory = ref<string>("");
@@ -54,18 +52,9 @@ const fetchCustomCategoryOptions = async () => {
     return;
   }
   try {
-    const url = new URL(
-      API_GET_CUSTOM_CATEGORY_OPTIONS,
-      window.location.origin
-    );
-    url.searchParams.append("shopID", selectedShop.value);
-    const response = await fetch(url.toString(), {
-      method: "GET"
+    const result = await getCustomCategoryOptions({
+      shopID: selectedShop.value
     });
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    const result = await response.json();
     if (result.success && Array.isArray(result.data)) {
       appendCustomCategoryOptions(normalizeCategoryPayload(result.data));
     } else {
@@ -168,22 +157,18 @@ const fetchProducts = async (resetPage = true) => {
       throw new Error("店铺信息不存在");
     }
 
-    // 构建请求URL
-    const url = new URL(API_GET_PRODUCTS, window.location.origin);
-    url.searchParams.append("shopID", selectedShop.value);
-    url.searchParams.append("shopName", shopOption.label);
-    url.searchParams.append("page", currentPage.value.toString());
-    url.searchParams.append("pageSize", pageSize.value.toString());
+    // 构建请求参数
+    const params: any = {
+      shopID: selectedShop.value,
+      shopName: shopOption.label,
+      page: currentPage.value,
+      pageSize: pageSize.value
+    };
     if (selectedCustomCategory.value) {
-      url.searchParams.append("customCategory", selectedCustomCategory.value);
+      params.customCategory = selectedCustomCategory.value;
     }
 
-    const res = await fetch(url.toString());
-    if (!res.ok) {
-      throw new Error(`HTTP error! status: ${res.status}`);
-    }
-
-    const result = await res.json();
+    const result = await getProductItems(params);
 
     if (result.success && result.data) {
       const filteredData = selectedCustomCategory.value

@@ -59,3 +59,26 @@ export const updateProductStage = (
   });
 };
 
+// 测款监控商品数据类型
+export interface TestingMonitorProduct {
+  product_id: string;
+  product_name: string;
+  product_image: string | null;
+  testing_stage_start: string | null; // 测款日期开始
+  total_visitors: number;
+  total_orders: number;
+}
+
+// 获取测款监控列表
+export const getTestingMonitorProducts = (params: {
+  shopID: string;
+  shopName: string;
+}): Promise<ApiResponse<TestingMonitorProduct[]>> => {
+  return http.request<ApiResponse<TestingMonitorProduct[]>>(
+    "get",
+    "/api/products/testing-monitor",
+    {
+      params
+    }
+  );
+};

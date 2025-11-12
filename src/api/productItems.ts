@@ -21,15 +21,27 @@ export interface ApiResponse<T = any> {
   error?: string;
 }
 
+// 分页响应类型
+export interface PaginatedApiResponse<T = any> extends ApiResponse<T> {
+  total?: number;
+}
+
 // 获取商品列表
 export const getProductItems = (params?: {
   page?: number;
   pageSize?: number;
+  shopID?: string;
+  shopName?: string;
+  customCategory?: string;
   [key: string]: any;
-}): Promise<ApiResponse<ProductItem[]>> => {
-  return http.request<ApiResponse<ProductItem[]>>("get", "/api/product-items", {
-    params
-  });
+}): Promise<PaginatedApiResponse<ProductItem[]>> => {
+  return http.request<PaginatedApiResponse<ProductItem[]>>(
+    "get",
+    "/api/product-items",
+    {
+      params
+    }
+  );
 };
 
 // 获取单个商品
