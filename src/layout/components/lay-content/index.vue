@@ -133,6 +133,7 @@ const transitionMain = defineComponent({
               }"
             >
               <el-backtop
+                v-if="fixedHeader"
                 :title="t('buttons.pureBackTop')"
                 target=".app-main .el-scrollbar__wrap"
               >
