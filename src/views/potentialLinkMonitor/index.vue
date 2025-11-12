@@ -5,7 +5,7 @@ import { Loading, Warning } from "@element-plus/icons-vue";
 import type { LoadingInstance } from "element-plus";
 import dayjs from "dayjs";
 
-defineOptions({ name: "FinishedLinkMonitor" });
+defineOptions({ name: "PotentialLinkMonitor" });
 
 type WarningLevel = "严重" | "一般" | "轻微" | "正常";
 type ChangeLevel = "极小" | "轻微" | "一般" | "明显" | "剧烈";
@@ -51,18 +51,6 @@ const currentProductId = ref<string>("");
 const currentPage = ref(1);
 const pageSize = ref(10);
 
-// 自定义分类筛选
-const customCategoryOptions = ref<Array<{ label: string; value: string }>>([]);
-const selectedCustomCategory = ref<string>("");
-
-// 自定义分类字段
-const categoryFields = [
-  "custom_category_1",
-  "custom_category_2",
-  "custom_category_3",
-  "custom_category_4"
-] as const;
-
 // 筛选后的商品数据
 const filteredProducts = computed(() => {
   let filtered = products.value;
@@ -107,9 +95,21 @@ const shopOptions = [
   }
 ];
 
-const API_LIST = "/api/finished/link/monitor/list"; // placeholder
-const API_AI_SUGGESTION = "/api/finished/link/monitor/ai-suggestion"; // AI建议接口
+const API_LIST = "/api/potential/link/monitor/list"; // placeholder
+const API_AI_SUGGESTION = "/api/potential/link/monitor/ai-suggestion"; // AI建议接口
 const API_GET_CUSTOM_CATEGORY_OPTIONS = "/api/product-items/custom-categories";
+
+// 自定义分类筛选
+const customCategoryOptions = ref<Array<{ label: string; value: string }>>([]);
+const selectedCustomCategory = ref<string>("");
+
+// 自定义分类字段
+const categoryFields = [
+  "custom_category_1",
+  "custom_category_2",
+  "custom_category_3",
+  "custom_category_4"
+] as const;
 
 function showLoader(text = "加载中..."): LoadingInstance {
   return ElLoading.service({ lock: true, text, background: "rgba(0,0,0,0.2)" });
@@ -184,7 +184,7 @@ function loadMockData() {
   products.value = [
     {
       id: "SKU-1001",
-      name: "成品 — 舒适运动鞋",
+      name: "潜力 — 舒适运动鞋",
       image: "https://via.placeholder.com/120?text=SKU-1001",
       visitorsAvg: [4200, 4500, 4700, 4900, 5100],
       visitorsVolatilityBaseline: [
@@ -215,7 +215,7 @@ function loadMockData() {
     },
     {
       id: "SKU-2002",
-      name: "成品 — 高端皮带",
+      name: "潜力 — 高端皮带",
       image: "https://via.placeholder.com/120?text=SKU-2002",
       visitorsAvg: [800, 760, 700, 650, 620],
       visitorsVolatilityBaseline: [
@@ -246,7 +246,7 @@ function loadMockData() {
     },
     {
       id: "SKU-3003",
-      name: "成品 — 电子秤（热销）",
+      name: "潜力 — 电子秤（热销）",
       image: "https://via.placeholder.com/120?text=SKU-3003",
       visitorsAvg: [12000, 12500, 13000, 13500, 14000],
       visitorsVolatilityBaseline: [
@@ -280,7 +280,7 @@ function loadMockData() {
     },
     {
       id: "SKU-4004",
-      name: "成品 — 夏季连衣裙",
+      name: "潜力 — 夏季连衣裙",
       image: null,
       visitorsAvg: [300, 280, 250, 220, 200],
       visitorsVolatilityBaseline: [
@@ -455,13 +455,12 @@ function appendCustomCategoryOptions(values: string[]) {
 /** 从商品数据中提取分类 */
 function extractCategoriesFromProducts(items: ProductCard[]): string[] {
   const collected: string[] = [];
+  // 注意：ProductCard 类型可能不包含分类字段，这里需要根据实际情况调整
+  // 如果后端返回的数据包含分类字段，需要更新 ProductCard 类型
   items.forEach(item => {
-    categoryFields.forEach(field => {
-      const value = (item as any)[field];
-      if (typeof value === "string" && value.trim()) {
-        collected.push(value.trim());
-      }
-    });
+    // 如果商品数据中包含分类字段，在这里提取
+    // 目前 ProductCard 类型中没有分类字段，所以这里暂时返回空数组
+    // 实际使用时需要根据后端返回的数据结构调整
   });
   return collected;
 }
@@ -498,6 +497,8 @@ async function fetchCustomCategoryOptions() {
 /** 处理自定义分类变化 */
 function handleCustomCategoryChange() {
   currentPage.value = 1;
+  // 如果数据已经加载，可以在这里进行前端筛选
+  // 或者重新调用 fetchData 从后端获取筛选后的数据
 }
 
 /** 处理店铺变化 */
@@ -528,7 +529,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="finished-monitor-page">
+  <div class="potential-monitor-page">
     <div class="controls">
       <el-select
         v-model="selectedShop"
@@ -973,7 +974,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.finished-monitor-page {
+.potential-monitor-page {
   padding: 20px;
   background: #f6f8fb;
   min-height: calc(100vh - 80px);

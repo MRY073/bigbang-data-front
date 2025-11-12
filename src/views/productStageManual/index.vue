@@ -23,6 +23,10 @@ type BackendProduct = {
   potential_stage: StageTimeRange;
   product_stage: StageTimeRange;
   abandoned_stage: StageTimeRange;
+  custom_category_1?: string | null;
+  custom_category_2?: string | null;
+  custom_category_3?: string | null;
+  custom_category_4?: string | null;
 };
 
 // 前端使用的商品行数据
@@ -50,6 +54,8 @@ type ProductRow = {
   savingFlags: Record<StageType, boolean>;
   // computed at runtime
   currentStage?: StageType | null;
+  customCategories: string[];
+  customCategoriesText: string;
 };
 
 // 阶段类型映射
@@ -101,9 +107,97 @@ const shopOptions = [
 // 接口地址
 const API_GET_PRODUCTS = "/api/products";
 const API_UPDATE_STAGE = "/api/products/stage";
+const API_GET_CUSTOM_CATEGORY_OPTIONS = "/api/product-items/custom-categories";
+const categoryFields: Array<
+  | "custom_category_1"
+  | "custom_category_2"
+  | "custom_category_3"
+  | "custom_category_4"
+> = [
+  "custom_category_1",
+  "custom_category_2",
+  "custom_category_3",
+  "custom_category_4"
+];
+
+const customCategoryOptions = ref<Array<{ label: string; value: string }>>([]);
+const selectedCustomCategory = ref<string>("");
 
 function showLoader(text = "加载中..."): LoadingInstance {
   return ElLoading.service({ lock: true, text, background: "rgba(0,0,0,0.2)" });
+}
+
+function normalizeCategoryPayload(payload: any[]): string[] {
+  return payload
+    .map(item => {
+      if (typeof item === "string") return item;
+      if (item && typeof item === "object") {
+        return (
+          item.label ?? item.name ?? item.value ?? item.key ?? item.id ?? ""
+        );
+      }
+      return "";
+    })
+    .map(text => (typeof text === "string" ? text.trim() : ""))
+    .filter(Boolean);
+}
+
+function appendCustomCategoryOptions(values: string[]) {
+  if (!values.length) return;
+  const existing = new Set(customCategoryOptions.value.map(opt => opt.value));
+  let changed = false;
+  values.forEach(value => {
+    const trimmed = value.trim();
+    if (!trimmed || existing.has(trimmed)) return;
+    customCategoryOptions.value.push({ label: trimmed, value: trimmed });
+    existing.add(trimmed);
+    changed = true;
+  });
+  if (changed) {
+    customCategoryOptions.value.sort((a, b) =>
+      a.label.localeCompare(b.label, "zh-Hans-CN")
+    );
+  }
+}
+
+function extractCategoriesFromProducts(items: BackendProduct[]): string[] {
+  const collected: string[] = [];
+  items.forEach(item => {
+    categoryFields.forEach(field => {
+      const value = item[field];
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (trimmed) collected.push(trimmed);
+      }
+    });
+  });
+  return collected;
+}
+
+async function fetchCustomCategoryOptions() {
+  try {
+    const url = new URL(
+      API_GET_CUSTOM_CATEGORY_OPTIONS,
+      window.location.origin
+    );
+    if (selectedShop.value) {
+      url.searchParams.append("shopID", selectedShop.value);
+    }
+    const response = await fetch(url.toString(), {
+      method: "GET"
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const result = await response.json();
+    if (result.success && Array.isArray(result.data)) {
+      appendCustomCategoryOptions(normalizeCategoryPayload(result.data));
+    } else {
+      throw new Error(result.error || result.message || "获取自定义分类失败");
+    }
+  } catch (error) {
+    console.error("获取自定义分类失败:", error);
+  }
 }
 
 /**
@@ -256,6 +350,11 @@ function computeCurrentStageForRow(row: ProductRow): StageType | null {
  */
 function initProducts(backendProducts: BackendProduct[]) {
   products.value = backendProducts.map(item => {
+    const customCategories = categoryFields
+      .map(field => item[field] ?? "")
+      .map(value => (typeof value === "string" ? value.trim() : ""))
+      .filter(Boolean);
+    const customCategoriesText = customCategories.join(" / ");
     const row: ProductRow = {
       product_id: item.product_id,
       product_name: item.product_name,
@@ -282,7 +381,9 @@ function initProducts(backendProducts: BackendProduct[]) {
         product: false,
         abandoned: false
       },
-      currentStage: null
+      currentStage: null,
+      customCategories,
+      customCategoriesText
     };
     row.currentStage = computeCurrentStageForRow(row);
     return row;
@@ -291,23 +392,16 @@ function initProducts(backendProducts: BackendProduct[]) {
 
 /** 拉取数据（仅手动触发） */
 async function fetchData() {
-  debugger; // 1. 函数入口
-  console.log("=== fetchData 开始 ===");
-  console.log("selectedShop.value:", selectedShop.value);
-
   if (!selectedShop.value) {
-    debugger; // 2. 店铺ID为空
     ElMessage.warning("请先选择店铺");
     return;
   }
 
-  debugger; // 3. 店铺ID验证通过
   pageLoading.value = true;
   const loader = showLoader("拉取数据中...");
 
   try {
     // 将店铺ID和店铺名称作为查询参数传递
-    debugger; // 4. 开始构建URL
     const shopOption = shopOptions.find(
       opt => opt.value === selectedShop.value
     );
@@ -317,53 +411,28 @@ async function fetchData() {
     const url = new URL(API_GET_PRODUCTS, window.location.origin);
     url.searchParams.append("shopID", selectedShop.value);
     url.searchParams.append("shopName", shopOption.label);
+    if (selectedCustomCategory.value) {
+      url.searchParams.append("customCategory", selectedCustomCategory.value);
+    }
     const requestUrl = url.toString();
-    console.log("请求URL:", requestUrl);
-    console.log("API_GET_PRODUCTS:", API_GET_PRODUCTS);
-    console.log("window.location.origin:", window.location.origin);
 
-    debugger; // 5. 发送fetch请求前
     const res = await fetch(requestUrl);
-    console.log("响应状态:", res.status, res.statusText);
-    console.log("响应headers:", res.headers);
-
-    debugger; // 6. fetch响应后
     if (!res.ok) {
-      debugger; // 7. HTTP状态错误
       const errorText = await res.text();
       console.error("HTTP错误响应内容:", errorText);
       throw new Error(`HTTP error! status: ${res.status}`);
     }
 
-    debugger; // 8. 开始解析JSON
     const result = await res.json();
-    console.log("接口返回结果:", result);
-    console.log("result.success:", result.success);
-    console.log("result.data:", result.data);
-    console.log(
-      "result.data类型:",
-      Array.isArray(result.data) ? "数组" : typeof result.data
-    );
-    if (result.data && Array.isArray(result.data)) {
-      console.log("result.data长度:", result.data.length);
-      if (result.data.length > 0) {
-        console.log("第一个商品数据:", result.data[0]);
-      }
-    }
-
-    debugger; // 9. JSON解析完成
     if (result.success && result.data) {
-      debugger; // 10. 数据验证通过，准备初始化
-      console.log("准备调用 initProducts，数据:", result.data);
       initProducts(result.data);
-      console.log("initProducts 完成，products.value:", products.value);
+      appendCustomCategoryOptions(extractCategoriesFromProducts(result.data));
       // 重置到第一页
       currentPage.value = 1;
       ElMessage.success(
         result.message || `数据拉取成功，共 ${products.value.length} 条`
       );
     } else {
-      debugger; // 11. 数据验证失败
       console.error("数据验证失败:", {
         success: result.success,
         hasData: !!result.data,
@@ -373,18 +442,11 @@ async function fetchData() {
       throw new Error(result.error || result.message || "查询失败");
     }
   } catch (error: any) {
-    debugger; // 12. 捕获到错误
-    console.error("=== fetchData 错误 ===");
-    console.error("错误类型:", error?.constructor?.name);
-    console.error("错误消息:", error?.message);
-    console.error("错误堆栈:", error?.stack);
-    console.error("完整错误对象:", error);
+    console.error("拉取数据失败:", error);
     ElMessage.error(error?.message || "网络连接失败，请检查网络后重试");
     // 清空数据
     products.value = [];
   } finally {
-    debugger; // 13. finally清理
-    console.log("=== fetchData 结束 ===");
     loader.close();
     pageLoading.value = false;
   }
@@ -527,6 +589,16 @@ const filteredAndSortedProducts = computed(() => {
     });
   }
 
+  // 根据自定义分类筛选
+  if (selectedCustomCategory.value) {
+    const selected = selectedCustomCategory.value.trim();
+    filtered = filtered.filter(row =>
+      row.customCategories.some(category =>
+        category.trim() === selected
+      )
+    );
+  }
+
   // 根据产品ID筛选
   const idFilterTrimmed = appliedProductIdFilter.value.trim();
   if (idFilterTrimmed) {
@@ -645,6 +717,35 @@ function toggleCurrentStageSort() {
   // 重置到第一页
   currentPage.value = 1;
 }
+
+function handleCustomCategoryChange() {
+  currentPage.value = 1;
+}
+
+/** 处理店铺变化 */
+function handleShopChange() {
+  // 清空分类选项和选中分类
+  customCategoryOptions.value = [];
+  selectedCustomCategory.value = "";
+  // 如果选择了店铺，则获取分类选项
+  if (selectedShop.value) {
+    fetchCustomCategoryOptions();
+  }
+  // 重置到第一页
+  currentPage.value = 1;
+}
+
+// 监听店铺变化
+watch(selectedShop, () => {
+  handleShopChange();
+});
+
+onMounted(() => {
+  // 初始化时获取自定义分类选项
+  if (selectedShop.value) {
+    fetchCustomCategoryOptions();
+  }
+});
 </script>
 
 <template>
@@ -663,6 +764,21 @@ function toggleCurrentStageSort() {
             <el-option label="成品阶段" value="product" />
             <el-option label="放弃阶段" value="abandoned" />
           </el-select>
+          <el-select
+            v-model="selectedCustomCategory"
+            placeholder="自定义分类"
+            clearable
+            filterable
+            style="width: 220px"
+            @change="handleCustomCategoryChange"
+          >
+            <el-option
+              v-for="item in customCategoryOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
         </div>
 
         <div class="actions">
@@ -670,6 +786,7 @@ function toggleCurrentStageSort() {
             v-model="selectedShop"
             placeholder="选择店铺"
             style="width: 200px; margin-right: 12px"
+            @change="handleShopChange"
           >
             <el-option
               v-for="item in shopOptions"
@@ -973,6 +1090,27 @@ function toggleCurrentStageSort() {
               </div>
             </template>
           </el-table-column>
+
+          <el-table-column
+            label="自定义分类"
+            min-width="220"
+            align="center"
+            header-align="center"
+            fixed="right"
+          >
+            <template #default="{ row }">
+              <div class="cell-center">
+                <span
+                  v-if="
+                    row.customCategoriesText && row.customCategoriesText.length
+                  "
+                >
+                  {{ row.customCategoriesText }}
+                </span>
+                <span v-else class="dash">-</span>
+              </div>
+            </template>
+          </el-table-column>
         </el-table>
       </div>
 
@@ -1017,6 +1155,12 @@ function toggleCurrentStageSort() {
   align-items: center;
   gap: 12px;
   margin-bottom: 12px;
+}
+
+.left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .actions {
