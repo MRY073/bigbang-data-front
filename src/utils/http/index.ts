@@ -61,6 +61,11 @@ class PureHttp {
   private httpInterceptorsRequest(): void {
     PureHttp.axiosInstance.interceptors.request.use(
       config => {
+        // 生产环境去掉 /api 前缀（开发环境通过 vite proxy 代理处理）
+        if (import.meta.env.PROD && config.url?.startsWith("/api")) {
+          config.url = config.url.replace(/^\/api/, "");
+        }
+
         // 如果是 FormData，删除默认的 Content-Type，让浏览器自动设置（包含 boundary）
         if (config.data instanceof FormData) {
           // 删除可能存在的 Content-Type，让 axios 自动处理
