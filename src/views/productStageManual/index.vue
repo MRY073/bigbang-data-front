@@ -1099,102 +1099,124 @@ onMounted(() => {
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
+@use "@/style/dopamine.scss" as dopamine;
+
 .product-stage-page {
-  padding: 12px;
+  @include dopamine.dopamine-page();
+  padding: 32px;
   min-height: calc(100vh - 80px);
-  background: #f7f9fc;
   box-sizing: border-box;
+  color: var(--dopamine-contrast);
 }
 
-/* 卡片尽量占满父元素 */
 .stage-card {
   width: 100%;
   margin: 0;
-  padding: 16px;
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(32, 45, 61, 0.06);
+  border-radius: 26px;
+  border: none;
+  @include dopamine.dopamine-surface(26px);
+
+  :deep(.el-card__body) {
+    padding: 28px;
+    background: transparent;
+  }
 }
 
-/* 顶部区域 */
 .card-header {
-  display: flex;
+  @include dopamine.dopamine-toolbar();
   justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 18px;
+  background: linear-gradient(
+    115deg,
+    rgba(255, 255, 255, 0.9) 0%,
+    rgba(108, 99, 255, 0.21) 55%,
+    rgba(255, 110, 199, 0.18) 100%
+  );
 }
 
 .left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
+  flex-wrap: wrap;
 }
 
 .actions {
   display: flex;
-  gap: 8px;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
-/* 产品筛选区域 */
 .filter-section {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-  padding: 12px;
-  background: #f5f7fa;
-  border-radius: 6px;
+  gap: 18px;
+  margin-bottom: 18px;
+  padding: 18px 20px;
+  border-radius: 18px;
+  border: 1px solid rgba(108, 99, 255, 0.2);
+  background: linear-gradient(
+    135deg,
+    rgba(108, 99, 255, 0.12) 0%,
+    rgba(255, 110, 199, 0.14) 55%,
+    rgba(102, 255, 181, 0.18) 100%
+  );
+  backdrop-filter: blur(12px);
 }
 
 .filter-inputs {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .filter-buttons {
   display: flex;
-  gap: 8px;
+  gap: 12px;
 }
 
-/* 表格容器 - 添加横向滚动 */
 .table-wrapper {
   width: 100%;
   overflow-x: auto;
   overflow-y: visible;
-  /* 优化滚动条样式 */
   scrollbar-width: thin;
-  scrollbar-color: #c1c1c1 #f1f1f1;
+  scrollbar-color: rgba(108, 99, 255, 0.35) rgba(255, 255, 255, 0.2);
+
+  &::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.4);
+    border-radius: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba(108, 99, 255, 0.4);
+    border-radius: 4px;
+  }
 }
 
-/* Webkit浏览器滚动条样式 */
-.table-wrapper::-webkit-scrollbar {
-  height: 8px;
-}
-
-.table-wrapper::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 4px;
-}
-
-.table-wrapper::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 4px;
-}
-
-.table-wrapper::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
-}
-
-/* 表格占满父元素宽度 */
 .stage-card :deep(.el-table) {
   width: 100%;
-  min-width: 1440px; /* 设置最小宽度，确保所有列都能显示 */
+  min-width: 1440px;
+  background: transparent;
+  color: var(--dopamine-contrast);
 }
 
-/* 表格单元格内容水平垂直居中 */
+.stage-card :deep(.el-table__header th) {
+  background: rgba(255, 255, 255, 0.8);
+  font-weight: 600;
+  color: var(--dopamine-soft-ink);
+}
+
+.stage-card :deep(.el-table tr) {
+  background: rgba(255, 255, 255, 0.72);
+}
+
 .stage-card :deep(.el-table .cell) {
   display: flex;
   align-items: center;
@@ -1202,45 +1224,42 @@ onMounted(() => {
   text-align: center;
 }
 
-/* 主图固定像素大小 */
 .thumb {
   width: 80px;
   height: 80px;
   object-fit: cover;
-  border-radius: 6px;
+  border-radius: 14px;
   display: block;
+  box-shadow: 0 8px 20px rgba(31, 18, 53, 0.15);
 }
 
-/* 无图占位 */
 .no-img {
   width: 80px;
   height: 80px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f2f6fb;
-  color: #9aa8bf;
-  border-radius: 6px;
+  border-radius: 14px;
+  color: var(--dopamine-secondary);
+  border: 1px dashed rgba(108, 99, 255, 0.35);
+  background: rgba(255, 255, 255, 0.65);
 }
 
-/* 阶段编辑器布局 */
 .stage-editor {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: 8px;
-  padding: 8px 0;
+  padding: 10px 0;
 }
 
 .time-picker-group {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 
-/* 保存操作按钮组 */
 .save-actions {
   display: flex;
   align-items: center;
@@ -1249,83 +1268,72 @@ onMounted(() => {
 }
 
 .save-actions .el-button {
-  width: 80px;
+  width: 96px;
+  @include dopamine.dopamine-primary-button();
 }
 
-/* 当前阶段基础样式 */
 .current-badge {
-  padding: 6px 12px;
-  border-radius: 16px;
+  padding: 6px 14px;
+  border-radius: 20px;
   font-weight: 700;
   font-size: 14px;
   display: inline-block;
-  min-width: 80px;
+  min-width: 90px;
   text-align: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  color: #fff;
+  box-shadow: 0 12px 25px rgba(31, 18, 53, 0.15);
 }
 
-/* 测款阶段 - 蓝色系 */
 .current-badge.stage-testing {
-  background: linear-gradient(135deg, #409eff 0%, #66b1ff 100%);
-  color: #ffffff;
-  border: 2px solid #66b1ff;
+  background: linear-gradient(135deg, #6c63ff 0%, #8c7bff 100%);
+  border: 1px solid rgba(108, 99, 255, 0.65);
 }
 
-/* 潜力阶段 - 绿色系 */
 .current-badge.stage-potential {
-  background: linear-gradient(135deg, #67c23a 0%, #85ce61 100%);
-  color: #ffffff;
-  border: 2px solid #85ce61;
+  background: linear-gradient(135deg, #ff9b6a 0%, #ffd33d 95%);
+  border: 1px solid rgba(255, 155, 106, 0.55);
 }
 
-/* 成品阶段 - 橙色/金色系 */
 .current-badge.stage-product {
-  background: linear-gradient(135deg, #e6a23c 0%, #f0a020 100%);
-  color: #ffffff;
-  border: 2px solid #f0a020;
+  background: linear-gradient(135deg, #2de2e6 0%, #66ffb5 100%);
+  border: 1px solid rgba(45, 226, 230, 0.6);
 }
 
-/* 放弃阶段 - 灰色/深色系 */
 .current-badge.stage-abandoned {
-  background: linear-gradient(135deg, #909399 0%, #606266 100%);
-  color: #ffffff;
-  border: 2px solid #606266;
+  background: linear-gradient(135deg, #ff6f91 0%, #ff3f6c 100%);
+  border: 1px solid rgba(255, 63, 108, 0.55);
 }
 
-/* 空时显示短横线 */
 .dash {
-  color: #909399;
+  color: var(--dopamine-soft-ink);
 }
 
-/* 放弃阶段整行深灰，字体浅白 */
 :deep(.el-table__row.row-abandoned) > td {
-  background-color: #2f2f33 !important;
-  color: #f5f5f7 !important;
-}
-:deep(.el-table__row.row-abandoned) {
-  --el-color-text: #f5f5f7;
+  background: rgba(31, 18, 53, 0.88) !important;
+  color: #fff !important;
 }
 
-/* 复制文本样式为正常文本 */
 .plain-text {
   cursor: pointer;
   color: inherit;
   user-select: text;
+
+  &:hover {
+    color: var(--dopamine-primary);
+  }
 }
 
-/* 响应式处理：确保表格内部滚动正常工作 */
 .stage-card :deep(.el-table__body-wrapper) {
   overflow-x: visible;
   overflow-y: auto;
 }
 
-/* 确保固定列在视觉上正常覆盖（Element Plus 固定列样式增强） */
-:deep(.el-table__fixed) {
-  z-index: 3;
-}
+:deep(.el-table__fixed),
 :deep(.el-table__fixed-right) {
-  z-index: 2;
+  z-index: 3;
+  background: transparent;
 }
+
 :deep(.el-table__fixed .cell),
 :deep(.el-table__fixed-right .cell) {
   display: flex;
@@ -1333,44 +1341,94 @@ onMounted(() => {
   justify-content: center;
 }
 
-/* 当有水平滚动时，固定列右侧显示分隔阴影（可选美化） */
 :deep(.el-table__fixed .el-table__fixed-right-shadow),
 :deep(.el-table__fixed-right .el-table__fixed-shadow) {
   box-shadow: none;
 }
 
-/* 分页组件样式 */
 .pagination-wrapper {
-  margin-top: 16px;
+  margin-top: 24px;
   display: flex;
   justify-content: flex-end;
-  padding: 12px 0;
+  padding: 16px 0 8px;
 }
 
-/* 可排序表头样式 */
 .sortable-header {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 6px;
   cursor: pointer;
   user-select: none;
   transition: color 0.2s;
-}
 
-.sortable-header:hover {
-  color: #409eff;
+  &:hover {
+    color: var(--dopamine-secondary);
+  }
 }
 
 .sort-icon {
   display: inline-flex;
   align-items: center;
   font-size: 14px;
-  color: #909399;
+  color: var(--dopamine-soft-ink);
   transition: color 0.2s;
 }
 
 .sortable-header:hover .sort-icon {
-  color: #409eff;
+  color: var(--dopamine-secondary);
+}
+
+:deep(.el-button--primary) {
+  @include dopamine.dopamine-primary-button();
+}
+
+:deep(.el-button--default) {
+  @include dopamine.dopamine-ghost-button();
+}
+
+@media (max-width: 1200px) {
+  .product-stage-page {
+    padding: 24px 20px;
+  }
+
+  .filter-section {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filter-buttons {
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 768px) {
+  .product-stage-page {
+    padding: 20px 16px;
+  }
+
+  .card-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .left,
+  .actions {
+    width: 100%;
+  }
+
+  .filter-section {
+    padding: 16px;
+  }
+
+  .stage-card :deep(.el-card__body) {
+    padding: 20px 16px;
+  }
+
+  .table-wrapper {
+    &::-webkit-scrollbar {
+      height: 6px;
+    }
+  }
 }
 </style>

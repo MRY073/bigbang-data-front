@@ -80,11 +80,11 @@ const pieChartRef = ref<HTMLElement>();
 
 // 图表配色方案
 const COLORS = {
-  product: "#67C23A", // 成品阶段-绿色
-  testing: "#409EFF", // 测款阶段-蓝色
-  potential: "#E6A23C", // 潜力阶段-橙色
-  abandoned: "#F56C6C", // 放弃阶段-红色
-  other: "#909399" // 其他阶段-灰色
+  product: "#2DE2E6", // 成品阶段-薄荷青
+  testing: "#6C63FF", // 测款阶段-绛紫
+  potential: "#FF9B6A", // 潜力阶段-珊瑚橙
+  abandoned: "#FF6F91", // 放弃阶段-樱桃粉
+  other: "#FFD33D" // 其他阶段-明黄
 };
 
 // 阶段名称映射
@@ -948,35 +948,57 @@ onUnmounted(() => {
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
+@use "@/style/dopamine.scss" as dopamine;
+
 .ad-analysis-page {
-  padding: 20px;
-  background: #f5f7fa;
+  @include dopamine.dopamine-page();
+  padding: 32px;
   min-height: calc(100vh - 80px);
+  color: var(--dopamine-contrast);
 }
 
-.overview-card {
-  margin-bottom: 20px;
-  background: #fff;
-  border: 1px solid #e4e7ed;
+.overview-card,
+.chart-card {
+  @include dopamine.dopamine-surface(24px);
+  border: none;
+  margin-bottom: 24px;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow:
+      0 26px 50px rgba(255, 110, 199, 0.28),
+      0 12px 28px rgba(108, 99, 255, 0.2);
+  }
+
+  :deep(.el-card__body) {
+    padding: 28px;
+    background: transparent;
+  }
 }
 
 .overview-header {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 28px;
 }
 
 .search-controls {
-  display: flex;
+  @include dopamine.dopamine-toolbar();
   justify-content: flex-start;
-  align-items: center;
+  background: linear-gradient(
+    120deg,
+    rgba(255, 255, 255, 0.9) 0%,
+    rgba(108, 99, 255, 0.2) 55%,
+    rgba(255, 110, 199, 0.2) 100%
+  );
 }
 
 .overview-content {
   display: flex;
   gap: 32px;
-  align-items: flex-start;
+  align-items: stretch;
 }
 
 .stages-overview {
@@ -985,87 +1007,98 @@ onUnmounted(() => {
 
 .stages-content {
   display: flex;
-  gap: 24px;
-  align-items: flex-start;
+  gap: 28px;
+  align-items: stretch;
 }
 
 .pie-chart-container {
   flex-shrink: 0;
   width: 400px;
+  @include dopamine.dopamine-surface(20px);
+  padding: 18px;
 }
 
 .pie-chart {
-  height: 300px;
+  height: 320px;
   width: 100%;
 }
 
 .section-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #303133;
-  margin-bottom: 16px;
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 18px;
+  @include dopamine.dopamine-punchy-text();
 }
 
 .stages-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 16px;
 }
 
 .stage-card-wrapper {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .stage-card {
-  padding: 16px;
-  border: 1px solid #e4e7ed;
-  background: #fff;
-  border-left: 3px solid;
+  padding: 18px;
+  border-radius: 18px;
+  color: var(--dopamine-contrast);
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 12px 24px rgba(31, 18, 53, 0.12);
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+
+  &:hover {
+    transform: translateY(-4px) scale(1.02);
+    box-shadow: 0 18px 32px rgba(108, 99, 255, 0.32);
+  }
 }
 
 .stage-card.product {
-  border-left-color: #67c23a;
+  @include dopamine.dopamine-chip(#2de2e6);
 }
 
 .stage-card.testing {
-  border-left-color: #409eff;
+  @include dopamine.dopamine-chip(#6c63ff);
 }
 
 .stage-card.potential {
-  border-left-color: #e6a23c;
+  @include dopamine.dopamine-chip(#ff9b6a);
 }
 
 .stage-card.abandoned {
-  border-left-color: #f56c6c;
+  @include dopamine.dopamine-chip(#ff6f91);
 }
 
 .stage-card.other {
-  border-left-color: #909399;
+  @include dopamine.dopamine-chip(#ffd33d);
+  color: #7a5610;
 }
 
 .stage-label {
-  font-size: 13px;
-  color: #606266;
-  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
 }
 
 .stage-value {
-  font-size: 18px;
-  font-weight: 600;
-  color: #303133;
-  margin-bottom: 4px;
+  font-size: 20px;
+  font-weight: 700;
+  margin: 6px 0;
 }
 
 .stage-percentage {
   font-size: 12px;
-  color: #909399;
+  opacity: 0.85;
 }
 
 .stage-detail-btn {
   width: 100%;
-  margin-top: 8px;
+  @include dopamine.dopamine-ghost-button();
 }
 
 .product-list-container {
@@ -1080,65 +1113,84 @@ onUnmounted(() => {
   align-items: center;
   width: 100%;
   height: 100%;
-  background: #f5f7fa;
-  color: #909399;
+  border-radius: 12px;
+  background: rgba(108, 99, 255, 0.08);
+  color: rgba(108, 99, 255, 0.7);
 }
 
 .roi-high {
-  color: #67c23a;
-  font-weight: 600;
+  color: var(--dopamine-neon-green);
+  font-weight: 700;
 }
 
 .roi-low {
-  color: #f56c6c;
-  font-weight: 600;
+  color: #ff6f91;
+  font-weight: 700;
 }
 
 .roi-overview {
-  min-width: 200px;
-}
-
-.roi-card {
-  background: #fff;
-  border: 1px solid #e4e7ed;
+  min-width: 220px;
+  @include dopamine.dopamine-surface(20px);
   padding: 24px;
   text-align: center;
 }
 
+.roi-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
 .roi-value {
-  font-size: 36px;
-  font-weight: 600;
-  color: #67c23a;
-  margin-bottom: 8px;
+  font-size: 42px;
+  font-weight: 700;
+  color: var(--dopamine-neon-green);
   line-height: 1;
+  letter-spacing: 1px;
+  text-shadow: 0 10px 24px rgba(31, 18, 53, 0.2);
 }
 
 .roi-label {
   font-size: 14px;
-  color: #909399;
-}
-
-.chart-card {
-  margin-bottom: 20px;
-  background: #fff;
-  border: 1px solid #e4e7ed;
+  color: var(--dopamine-soft-ink);
 }
 
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  @include dopamine.dopamine-card-header();
+  border-radius: 20px 20px 0 0;
+  margin: -28px -28px 24px;
 }
 
 .card-title {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
-  color: #303133;
 }
 
 .chart-container {
-  height: 400px;
+  height: 420px;
   width: 100%;
+}
+
+:deep(.el-button--primary) {
+  @include dopamine.dopamine-primary-button();
+}
+
+:deep(.el-dialog__body) {
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--dopamine-contrast);
+}
+
+:deep(.el-pagination.is-background .el-pager li.is-active) {
+  background: linear-gradient(
+    120deg,
+    var(--dopamine-secondary) 0%,
+    var(--dopamine-primary) 90%
+  );
+  box-shadow: 0 10px 18px rgba(108, 99, 255, 0.25);
 }
 
 @media (max-width: 1400px) {
@@ -1150,10 +1202,6 @@ onUnmounted(() => {
     width: 100%;
   }
 
-  .roi-card {
-    max-width: 300px;
-  }
-
   .stages-content {
     flex-direction: column;
   }
@@ -1163,23 +1211,40 @@ onUnmounted(() => {
   }
 
   .pie-chart {
-    height: 400px;
+    height: 380px;
   }
 }
 
 @media (max-width: 1200px) {
+  .ad-analysis-page {
+    padding: 24px 20px;
+  }
+
   .stages-grid {
     grid-template-columns: repeat(3, 1fr);
   }
 }
 
 @media (max-width: 768px) {
+  .ad-analysis-page {
+    padding: 20px 16px;
+  }
+
   .stages-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 
   .chart-container {
-    height: 300px;
+    height: 320px;
+  }
+
+  .search-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pie-chart {
+    height: 320px;
   }
 }
 </style>

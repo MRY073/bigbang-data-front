@@ -452,65 +452,87 @@ async function copyId(text: string) {
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
+@use "@/style/dopamine.scss" as dopamine;
+
 .trial-monitor-page {
-  padding: 20px;
-  background: #f6f8fb;
+  @include dopamine.dopamine-page();
+  padding: 32px;
   min-height: calc(100vh - 80px);
   box-sizing: border-box;
+  color: var(--dopamine-contrast);
 }
 
-/* 控制区 */
 .controls {
-  display: flex;
+  @include dopamine.dopamine-toolbar();
   justify-content: flex-end;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: linear-gradient(
+    120deg,
+    rgba(255, 255, 255, 0.9) 0%,
+    rgba(108, 99, 255, 0.2) 55%,
+    rgba(255, 110, 199, 0.18) 100%
+  );
 }
 
-/* 网格布局：左到右、自动换行，每个商品一个块 */
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 16px;
+  gap: 20px;
   align-items: start;
 }
 
-/* 卡片样式（每个商品一个块） */
 .prod-card {
-  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
-  border-radius: 12px;
-  padding: 14px;
-  box-shadow: 0 8px 18px rgba(32, 45, 61, 0.04);
+  @include dopamine.dopamine-surface(22px);
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  transition:
-    transform 0.12s ease,
-    box-shadow 0.12s ease;
-}
-.prod-card:hover {
-  transform: translateY(-6px);
-  box-shadow: 0 16px 30px rgba(32, 45, 61, 0.08);
+  gap: 14px;
+  border: none;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+
+  &:hover {
+    transform: translateY(-6px);
+    box-shadow:
+      0 26px 50px rgba(255, 110, 199, 0.3),
+      0 18px 36px rgba(108, 99, 255, 0.24);
+  }
 }
 
-/* 状态颜色类 */
 .card-status-finished {
-  background: linear-gradient(180deg, #fff6f6 0%, #fff1f1 100%);
-  border: 1px solid rgba(255, 77, 79, 0.15);
-}
-.card-status-watching {
-  background: linear-gradient(180deg, #fffbf0 0%, #fff7e6 100%);
-  border: 1px solid rgba(250, 173, 20, 0.15);
-}
-.card-status-normal {
-  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
-  border: 1px solid rgba(16, 34, 70, 0.04);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 110, 145, 0.22) 0%,
+    rgba(255, 155, 106, 0.22) 45%,
+    rgba(255, 211, 61, 0.2) 100%
+  );
+  border: 1px solid rgba(255, 110, 145, 0.3);
 }
 
-/* 顶部：图片 + 基本信息 */
+.card-status-watching {
+  background: linear-gradient(
+    135deg,
+    rgba(45, 226, 230, 0.22) 0%,
+    rgba(108, 99, 255, 0.18) 60%,
+    rgba(255, 211, 61, 0.16) 100%
+  );
+  border: 1px solid rgba(108, 99, 255, 0.28);
+}
+
+.card-status-normal {
+  background: linear-gradient(
+    140deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(255, 255, 255, 0.72) 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
 .card-top {
   display: flex;
-  gap: 12px;
+  gap: 16px;
   align-items: center;
 }
 
@@ -518,59 +540,86 @@ async function copyId(text: string) {
   flex: 0 0 96px;
   width: 96px;
   height: 96px;
-  border-radius: 10px;
+  border-radius: 18px;
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #fff;
-  border: 1px solid rgba(16, 34, 70, 0.04);
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 10px 20px rgba(31, 18, 53, 0.14);
 }
+
 .thumb {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
+
 .thumb.placeholder {
-  color: #9aa8bf;
-  background: #f2f6fb;
+  color: var(--dopamine-secondary);
+  background: rgba(108, 99, 255, 0.12);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
-  padding: 6px;
+  font-size: 14px;
+  font-weight: 600;
 }
 
-/* 信息区 */
 .info-area {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  min-width: 0; /* 确保 flex 子元素可以收缩 */
+  gap: 8px;
+  min-width: 0;
 }
+
 .id {
   font-weight: 700;
-  color: #1f2d3d;
+  font-size: 14px;
+  color: var(--dopamine-secondary);
   cursor: pointer;
   user-select: text;
-  font-size: 13px;
+  text-shadow: 0 6px 14px rgba(108, 99, 255, 0.2);
+
+  &:hover {
+    color: var(--dopamine-primary);
+  }
 }
+
 .name {
-  font-size: 15px;
-  color: #2b2b2b;
+  font-size: 16px;
   font-weight: 600;
+  color: var(--dopamine-contrast);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 100%; /* 确保不超过父容器宽度 */
-  width: 100%; /* 占据父容器全部宽度 */
-}
-.tags {
-  margin-top: 6px;
+  width: 100%;
 }
 
-/* 指标区域 */
+.tags {
+  margin-top: 4px;
+
+  :deep(.el-tag) {
+    border-radius: 999px;
+    padding: 0 16px;
+    font-weight: 600;
+    border: none;
+    box-shadow: 0 10px 16px rgba(255, 110, 199, 0.25);
+  }
+
+  :deep(.el-tag--danger) {
+    background: linear-gradient(120deg, #ff6f91 0%, #ff3f6c 100%);
+    color: #fff;
+  }
+
+  :deep(.el-tag--warning) {
+    background: linear-gradient(120deg, #ffd33d 0%, #ff9b6a 100%);
+    color: #7a4b0f;
+    box-shadow: 0 10px 18px rgba(255, 211, 61, 0.35);
+  }
+}
+
 .card-metrics {
   display: flex;
   gap: 12px;
@@ -578,46 +627,73 @@ async function copyId(text: string) {
   justify-content: space-between;
   flex-wrap: wrap;
 }
+
 .metric {
   flex: 1 1 30%;
-  background: linear-gradient(180deg, #fff 0%, #fbfdff 100%);
-  border-radius: 8px;
-  padding: 10px;
-  min-width: 90px;
-  box-shadow: 0 6px 12px rgba(32, 45, 61, 0.04);
+  min-width: 100px;
+  border-radius: 16px;
+  padding: 12px 14px;
+  background: linear-gradient(
+    140deg,
+    rgba(255, 255, 255, 0.88) 0%,
+    rgba(108, 99, 255, 0.12) 45%,
+    rgba(45, 226, 230, 0.12) 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  box-shadow: 0 12px 20px rgba(31, 18, 53, 0.12);
   display: flex;
   flex-direction: column;
-  gap: 6px;
-}
-.metric .label {
-  font-size: 12px;
-  color: #909399;
-}
-.metric .value {
-  font-size: 18px;
-  font-weight: 800;
-  color: #1f2d3d;
+  gap: 8px;
 }
 
-/* 底部提示 */
+.metric .label {
+  font-size: 12px;
+  color: var(--dopamine-soft-ink);
+  letter-spacing: 0.4px;
+}
+
+.metric .value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--dopamine-contrast);
+}
+
 .card-foot .hint {
   font-weight: 700;
   font-size: 13px;
-}
-.card-status-finished .card-foot .hint {
-  color: #cf1322;
-}
-.card-status-watching .card-foot .hint {
-  color: #d48806;
+  color: var(--dopamine-contrast);
 }
 
-/* 响应式：窄屏时每行一个块 */
+.card-status-finished .card-foot .hint {
+  color: #ff3f6c;
+}
+
+.card-status-watching .card-foot .hint {
+  color: #ff9b6a;
+}
+
+:deep(.el-button--primary) {
+  @include dopamine.dopamine-primary-button();
+}
+
+@media (max-width: 1024px) {
+  .trial-monitor-page {
+    padding: 24px 20px;
+  }
+
+  .controls {
+    justify-content: center;
+  }
+}
+
 @media (max-width: 720px) {
   .grid {
     grid-template-columns: 1fr;
   }
+
   .metric {
     min-width: 100%;
   }
 }
 </style>
+

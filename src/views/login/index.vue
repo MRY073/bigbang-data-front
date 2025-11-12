@@ -18,13 +18,14 @@ import LoginUpdate from "./components/LoginUpdate.vue";
 import LoginQrCode from "./components/LoginQrCode.vue";
 import { useUserStoreHook } from "@/store/modules/user";
 import { getTopMenu, addPathMatch } from "@/router/utils";
-import { bg, avatar, illustration } from "./utils/static";
+import { illustration } from "./utils/static";
 // import { ReImageVerify } from "@/components/ReImageVerify";
-import { ref, toRaw, reactive, watch, computed } from "vue";
+import { ref, toRaw, reactive, computed } from "vue";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import { useTranslationLang } from "@/layout/hooks/useTranslationLang";
 import { useDataThemeChange } from "@/layout/hooks/useDataThemeChange";
 import { usePermissionStoreHook } from "@/store/modules/permission";
+import type { Options as TypeItOptions } from "typeit";
 
 import dayIcon from "@/assets/svg/day.svg?component";
 import darkIcon from "@/assets/svg/dark.svg?component";
@@ -32,7 +33,6 @@ import globalization from "@/assets/svg/globalization.svg?component";
 import Lock from "~icons/ri/lock-fill";
 import Check from "~icons/ep/check";
 import User from "~icons/ri/user-3-fill";
-import Info from "~icons/ri/information-line";
 import Keyhole from "~icons/ri/shield-keyhole-line";
 
 defineOptions({
@@ -62,6 +62,33 @@ const ruleForm = reactive({
   username: "",
   password: ""
 });
+
+const typeItOptions: TypeItOptions = {
+  strings: [
+    "激活你的数据多巴胺 ⚡",
+    "洞察业务高光瞬间 🌈",
+    "把经营分析调到最上头 💥"
+  ],
+  speed: 52,
+  lifeLike: true,
+  breakLines: false,
+  waitUntilVisible: true,
+  loop: true,
+  nextStringDelay: 1200,
+  cursorChar: "▋",
+  deleteSpeed: 36
+};
+
+const dopamineHighlights = [
+  "实时经营诊断",
+  "AI 智能解读",
+  "多维协同分析",
+  "可视化体验升级"
+];
+
+const brandText = computed(() =>
+  (title.value || "Bigbang Data Front").toUpperCase()
+);
 
 const onLogin = async (formEl: FormInstance | undefined) => {
   // 校验密码强度
@@ -111,68 +138,122 @@ useEventListener(document, "keydown", ({ code }) => {
 </script>
 
 <template>
-  <div class="select-none">
-    <img :src="bg" class="wave" />
-    <div class="flex-c absolute right-5 top-3">
-      <!-- 主题 -->
-      <el-switch
-        v-model="dataTheme"
-        inline-prompt
-        :active-icon="dayIcon"
-        :inactive-icon="darkIcon"
-        @change="dataThemeChange"
-      />
-      <!-- 国际化 -->
-      <el-dropdown trigger="click">
-        <globalization
-          class="hover:text-primary hover:bg-[transparent]! w-[20px] h-[20px] ml-1.5 cursor-pointer outline-hidden duration-300"
-        />
-        <template #dropdown>
-          <el-dropdown-menu class="translation">
-            <el-dropdown-item
-              :style="getDropdownItemStyle(locale, 'zh')"
-              :class="['dark:text-white!', getDropdownItemClass(locale, 'zh')]"
-              @click="translationCh"
-            >
-              <IconifyIconOffline
-                v-show="locale === 'zh'"
-                class="check-zh"
-                :icon="Check"
-              />
-              简体中文
-            </el-dropdown-item>
-            <el-dropdown-item
-              :style="getDropdownItemStyle(locale, 'en')"
-              :class="['dark:text-white!', getDropdownItemClass(locale, 'en')]"
-              @click="translationEn"
-            >
-              <span v-show="locale === 'en'" class="check-en">
-                <IconifyIconOffline :icon="Check" />
-              </span>
-              English
-            </el-dropdown-item>
-          </el-dropdown-menu>
-        </template>
-      </el-dropdown>
+  <div class="login-page select-none">
+    <div class="dopamine-background">
+      <span class="blob blob-1" />
+      <span class="blob blob-2" />
+      <span class="blob blob-3" />
+      <span class="beam beam-1" />
+      <span class="beam beam-2" />
+      <span class="grid-layer" />
     </div>
-    <div class="login-container">
-      <div class="img">
-        <component :is="toRaw(illustration)" />
+
+    <header class="login-toolbar">
+      <Motion>
+        <div class="brand">
+          <span class="brand-badge">{{ brandText }}</span>
+          <p class="brand-subtitle">
+            {{ (title || "奇点比格邦经营数据中台") + " · Dopamine Mode" }}
+          </p>
+        </div>
+      </Motion>
+      <div class="toolbar-actions">
+        <el-switch
+          v-model="dataTheme"
+          inline-prompt
+          :active-icon="dayIcon"
+          :inactive-icon="darkIcon"
+          @change="dataThemeChange"
+        />
+        <el-dropdown trigger="click">
+          <globalization class="lang-trigger" />
+          <template #dropdown>
+            <el-dropdown-menu class="translation">
+              <el-dropdown-item
+                :style="getDropdownItemStyle(locale, 'zh')"
+                :class="[
+                  'dark:text-white!',
+                  getDropdownItemClass(locale, 'zh')
+                ]"
+                @click="translationCh"
+              >
+                <IconifyIconOffline
+                  v-show="locale === 'zh'"
+                  class="check-zh"
+                  :icon="Check"
+                />
+                简体中文
+              </el-dropdown-item>
+              <el-dropdown-item
+                :style="getDropdownItemStyle(locale, 'en')"
+                :class="[
+                  'dark:text-white!',
+                  getDropdownItemClass(locale, 'en')
+                ]"
+                @click="translationEn"
+              >
+                <span v-show="locale === 'en'" class="check-en">
+                  <IconifyIconOffline :icon="Check" />
+                </span>
+                English
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
-      <div class="login-box">
-        <div class="login-form">
-          <!-- <avatar class="avatar" /> -->
-          <Motion>
-            <h2 class="outline-hidden">奇点比格邦经营数据中台</h2>
-          </Motion>
+    </header>
+
+    <main class="login-wrapper">
+      <section class="login-showcase">
+        <Motion :delay="80">
+          <h1 class="showcase-title">
+            奇点比格邦经营数据中台
+            <span class="title-highlight">LOGIN</span>
+          </h1>
+        </Motion>
+        <Motion :delay="160">
+          <TypeIt :options="typeItOptions">
+            <span class="type-it showcase-type" />
+          </TypeIt>
+        </Motion>
+        <Motion :delay="240">
+          <p class="showcase-description">
+            以更上头的色彩节奏和设计语言，点燃你对数据的灵感，实时把握经营高光时刻。
+          </p>
+        </Motion>
+        <Motion :delay="320">
+          <div class="showcase-chips">
+            <span v-for="chip in dopamineHighlights" :key="chip" class="chip">
+              {{ chip }}
+            </span>
+          </div>
+        </Motion>
+        <Motion :delay="380">
+          <div class="illustration-card">
+            <component :is="toRaw(illustration)" />
+          </div>
+        </Motion>
+      </section>
+
+      <section class="login-panel">
+        <Motion>
+          <div class="panel-header">
+            <span class="panel-tag">Welcome Back</span>
+            <h2>登录即刻点亮数据灵感</h2>
+            <p>输入账号密码，沉浸式启动多巴胺级别的经营分析体验。</p>
+          </div>
+        </Motion>
+
+        <Motion :delay="140">
           <el-form
             v-if="currentPage === 0"
             ref="ruleFormRef"
             :model="ruleForm"
             :rules="loginRules"
             size="large"
+            class="login-form"
           >
-            <Motion :delay="100">
+            <Motion :delay="60">
               <el-form-item
                 :rules="[
                   {
@@ -192,7 +273,7 @@ useEventListener(document, "keydown", ({ code }) => {
               </el-form-item>
             </Motion>
 
-            <Motion :delay="150">
+            <Motion :delay="120">
               <el-form-item prop="password">
                 <el-input
                   v-model="ruleForm.password"
@@ -206,7 +287,7 @@ useEventListener(document, "keydown", ({ code }) => {
 
             <!-- 验证码模块已注释，如需恢复，取消注释以下代码 -->
             <!--
-            <Motion :delay="200">
+            <Motion :delay="180">
               <el-form-item prop="verifyCode">
                 <el-input
                   v-model="ruleForm.verifyCode"
@@ -214,7 +295,7 @@ useEventListener(document, "keydown", ({ code }) => {
                   :placeholder="t('login.pureVerifyCode')"
                   :prefix-icon="useRenderIcon(Keyhole)"
                 >
-                  <template v-slot:append>
+                  <template #append>
                     <ReImageVerify v-model:code="imgCode" />
                   </template>
                 </el-input>
@@ -222,36 +303,9 @@ useEventListener(document, "keydown", ({ code }) => {
             </Motion>
             -->
 
-            <Motion :delay="250">
+            <Motion :delay="200">
               <el-form-item>
-                <div class="w-full h-[20px] flex justify-between items-center">
-                  <!-- <el-checkbox v-model="checked">
-                    <span class="flex">
-                      <select
-                        v-model="loginDay"
-                        :style="{
-                          width: loginDay < 10 ? '10px' : '16px',
-                          outline: 'none',
-                          background: 'none',
-                          appearance: 'none',
-                          border: 'none'
-                        }"
-                      >
-                        <option value="1">1</option>
-                        <option value="7">7</option>
-                        <option value="30">30</option>
-                      </select>
-                      {{ t("login.pureRemember") }}
-                      <IconifyIconOffline
-                        v-tippy="{
-                          content: t('login.pureRememberInfo'),
-                          placement: 'top'
-                        }"
-                        :icon="Info"
-                        class="ml-1"
-                      />
-                    </span>
-                  </el-checkbox> -->
+                <div class="form-actions">
                   <!-- <el-button
                     link
                     type="primary"
@@ -261,7 +315,7 @@ useEventListener(document, "keydown", ({ code }) => {
                   </el-button> -->
                 </div>
                 <el-button
-                  class="w-full mt-4!"
+                  class="submit-btn"
                   size="default"
                   type="primary"
                   :loading="loading"
@@ -273,7 +327,7 @@ useEventListener(document, "keydown", ({ code }) => {
               </el-form-item>
             </Motion>
 
-            <!-- <Motion :delay="300">
+            <!-- <Motion :delay="260">
               <el-form-item>
                 <div class="w-full h-[20px] flex justify-between items-center">
                   <el-button
@@ -289,52 +343,40 @@ useEventListener(document, "keydown", ({ code }) => {
               </el-form-item>
             </Motion> -->
           </el-form>
+        </Motion>
 
-          <!-- <Motion v-if="currentPage === 0" :delay="350">
-            <el-form-item>
-              <el-divider>
-                <p class="text-gray-500 text-xs">
-                  {{ t("login.pureThirdLogin") }}
-                </p>
-              </el-divider>
-              <div class="w-full flex justify-evenly">
-                <span
-                  v-for="(item, index) in thirdParty"
-                  :key="index"
-                  :title="t(item.title)"
-                >
-                  <IconifyIconOnline
-                    :icon="`ri:${item.icon}-fill`"
-                    width="20"
-                    class="cursor-pointer text-gray-500 hover:text-blue-400"
-                  />
-                </span>
-              </div>
-            </el-form-item>
-          </Motion> -->
-          <!-- 手机号登录 -->
-          <!-- <LoginPhone v-if="currentPage === 1" /> -->
-          <!-- 二维码登录 -->
-          <!-- <LoginQrCode v-if="currentPage === 2" /> -->
-          <!-- 注册 -->
-          <!-- <LoginRegist v-if="currentPage === 3" /> -->
-          <!-- 忘记密码 -->
-          <!-- <LoginUpdate v-if="currentPage === 4" /> -->
-        </div>
-      </div>
-    </div>
-    <!-- <div
-      class="w-full flex-c absolute bottom-3 text-sm text-[rgba(0,0,0,0.6)] dark:text-[rgba(220,220,242,0.8)]"
-    >
-      Copyright © 2020-present
-      <a
-        class="hover:text-primary!"
-        href="https://github.com/pure-admin"
-        target="_blank"
-      >
-        &nbsp;{{ title }}
-      </a>
-    </div> -->
+        <!-- <Motion v-if="currentPage === 0" :delay="220">
+          <el-form-item>
+            <el-divider>
+              <p class="text-gray-500 text-xs">
+                {{ t("login.pureThirdLogin") }}
+              </p>
+            </el-divider>
+            <div class="w-full flex justify-evenly">
+              <span
+                v-for="(item, index) in thirdParty"
+                :key="index"
+                :title="t(item.title)"
+              >
+                <IconifyIconOnline
+                  :icon="`ri:${item.icon}-fill`"
+                  width="20"
+                  class="cursor-pointer text-gray-500 hover:text-blue-400"
+                />
+              </span>
+            </div>
+          </el-form-item>
+        </Motion> -->
+        <!-- 手机号登录 -->
+        <!-- <LoginPhone v-if="currentPage === 1" /> -->
+        <!-- 二维码登录 -->
+        <!-- <LoginQrCode v-if="currentPage === 2" /> -->
+        <!-- 注册 -->
+        <!-- <LoginRegist v-if="currentPage === 3" /> -->
+        <!-- 忘记密码 -->
+        <!-- <LoginUpdate v-if="currentPage === 4" /> -->
+      </section>
+    </main>
   </div>
 </template>
 

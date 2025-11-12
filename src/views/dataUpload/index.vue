@@ -379,135 +379,71 @@ watch(
 </template>
 
 <style scoped lang="scss">
+@use "@/style/dopamine.scss" as dopamine;
+
 .data-upload-page {
+  @include dopamine.dopamine-page();
   min-height: calc(100vh - 84px);
-  padding: 40px 0;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  background-attachment: fixed;
+  padding: 48px 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
+  color: var(--dopamine-contrast);
 }
 
-/* 页面头部 */
-.page-header {
-  margin-bottom: 24px;
-
-  .header-content {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 24px 32px;
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(10px);
-    border-radius: 16px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-    transition: all 0.3s ease;
-
-    &:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
-    }
-
-    .header-icon {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 64px;
-      height: 64px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      border-radius: 16px;
-      color: white;
-      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-    }
-
-    .header-text {
-      flex: 1;
-
-      .page-title {
-        margin: 0 0 8px;
-        font-size: 28px;
-        font-weight: 700;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-      }
-
-      .page-desc {
-        margin: 0;
-        font-size: 14px;
-        color: #606266;
-        line-height: 1.6;
-      }
-    }
-  }
-}
-
-/* 主内容区域 */
 .main-content {
   display: flex;
-  // grid-template-columns: 1fr;
-  gap: 24px;
+  gap: 28px;
   width: 100%;
-  max-width: 1400px;
   margin: 0 auto;
-  padding: 0 20px;
-  padding-top: 20px;
-
-  @media (min-width: 992px) {
-    grid-template-columns: 1fr 1.2fr;
-    padding: 0 40px;
-    padding-top: 20px;
-  }
+  padding: 20px 28px 0;
 
   @media (min-width: 1400px) {
-    padding: 0 60px;
-    padding-top: 20px;
+    padding-inline: 48px;
   }
 }
 
-/* 卡片通用样式 */
 .config-card,
 .upload-card {
-  border-radius: 16px;
-  border: none;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-  transition: all 0.3s ease;
+  @include dopamine.dopamine-surface();
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
   overflow: hidden;
 
   &:hover {
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
-    transform: translateY(-2px);
+    transform: translateY(-4px);
+    box-shadow:
+      0 26px 50px rgba(255, 110, 199, 0.28),
+      0 14px 30px rgba(108, 99, 255, 0.22);
   }
 
   :deep(.el-card__header) {
-    padding: 20px 24px;
-    background: linear-gradient(135deg, #f5f7fa 0%, #fff 100%);
-    border-bottom: 1px solid #ebeef5;
+    @include dopamine.dopamine-card-header();
 
     .card-header {
       display: flex;
       align-items: center;
-      gap: 8px;
-      font-size: 16px;
+      gap: 12px;
+      font-size: 18px;
       font-weight: 600;
-      color: #303133;
 
       .el-icon {
-        font-size: 20px;
-        color: #667eea;
+        font-size: 22px;
+        color: #fff;
       }
     }
   }
 
   :deep(.el-card__body) {
-    padding: 24px;
+    padding: 28px;
+    background: linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.92) 0%,
+      rgba(255, 255, 255, 0.72) 100%
+    );
   }
 }
 
-/* 表单样式 */
 .upload-form {
   .type-group {
     width: 100%;
@@ -516,6 +452,8 @@ watch(
       :deep(.el-radio-button) {
         flex: 1;
         margin-right: 12px;
+        border-radius: 14px;
+        overflow: hidden;
 
         &:last-child {
           margin-right: 0;
@@ -525,79 +463,99 @@ watch(
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 8px;
-          padding: 12px 20px;
-          border-radius: 8px;
-          transition: all 0.3s ease;
+          gap: 12px;
+          padding: 16px 20px;
+          border-radius: 12px;
+          transition: all 0.25s ease;
+          background: rgba(255, 255, 255, 0.65);
+          border: 1px solid transparent;
 
           .radio-icon {
-            font-size: 16px;
+            font-size: 18px;
+            color: var(--dopamine-secondary);
+            transition: inherit;
           }
         }
 
         &.is-active .el-radio-button__inner {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          border-color: #667eea;
-          color: white;
-          box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+          background: linear-gradient(
+            120deg,
+            rgba(108, 99, 255, 0.95) 0%,
+            rgba(255, 110, 199, 0.9) 60%,
+            rgba(255, 211, 61, 0.85) 100%
+          );
+          border-color: transparent;
+          color: #fff;
+          box-shadow: 0 15px 30px rgba(108, 99, 255, 0.3);
+
+          .radio-icon {
+            color: #fff;
+            transform: scale(1.1);
+          }
         }
       }
     }
 
     .type-radio {
       width: 100%;
-      margin-bottom: 12px;
-      margin-right: 0;
-      border-radius: 8px;
-      transition: all 0.3s ease;
+      margin-bottom: 14px;
+      border-radius: 14px;
+      padding: 2px;
+      transition: all 0.25s ease;
 
       &:hover {
-        border-color: #667eea;
+        border-color: rgba(108, 99, 255, 0.35);
         transform: translateX(4px);
       }
 
       :deep(.el-radio__input.is-checked + .el-radio__label) {
-        color: #667eea;
+        color: var(--dopamine-secondary);
       }
 
       :deep(.el-radio__input.is-checked .el-radio__inner) {
-        background-color: #667eea;
-        border-color: #667eea;
+        border-color: var(--dopamine-secondary);
+        background-color: var(--dopamine-secondary);
       }
 
       .radio-content {
         display: flex;
         align-items: center;
-        gap: 8px;
-        padding: 8px 0;
+        gap: 12px;
+        padding: 12px 6px;
 
         .radio-icon {
-          font-size: 18px;
-          color: #667eea;
+          font-size: 20px;
+          color: var(--dopamine-secondary);
         }
       }
     }
   }
 }
 
-/* 文件统计卡片 */
 .file-summary-card {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 20px;
-  background: linear-gradient(135deg, #f8f9ff 0%, #fff 100%);
-  border-radius: 12px;
-  border: 1px solid #e4e7ed;
+  padding: 22px;
+  border-radius: 18px;
+  border: 1px solid rgba(108, 99, 255, 0.18);
+  background: linear-gradient(
+    135deg,
+    rgba(108, 99, 255, 0.12) 0%,
+    rgba(255, 110, 199, 0.16) 50%,
+    rgba(255, 211, 61, 0.12) 100%
+  );
+  backdrop-filter: blur(16px);
 
   .summary-item {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 14px;
 
     .summary-icon {
-      font-size: 24px;
-      color: #667eea;
+      font-size: 26px;
+      color: var(--dopamine-secondary);
+      filter: drop-shadow(0 6px 12px rgba(108, 99, 255, 0.4));
     }
 
     .summary-info {
@@ -606,24 +564,37 @@ watch(
       gap: 4px;
 
       .summary-label {
-        font-size: 12px;
-        color: #909399;
+        font-size: 13px;
+        color: var(--dopamine-soft-ink);
+        letter-spacing: 0.5px;
       }
 
       .summary-value {
-        font-size: 20px;
-        font-weight: 600;
-        color: #303133;
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--dopamine-contrast);
       }
     }
   }
 
   .progress-bar {
-    margin: 8px 0;
+    margin: 6px 0 0;
+
+    :deep(.el-progress-bar__inner) {
+      background: linear-gradient(
+        120deg,
+        var(--dopamine-secondary) 0%,
+        var(--dopamine-primary) 60%,
+        var(--dopamine-accent) 100%
+      );
+    }
+  }
+
+  .el-button {
+    @include dopamine.dopamine-ghost-button();
   }
 }
 
-/* 上传区域 */
 .upload-area {
   .upload-demo {
     width: 100%;
@@ -634,135 +605,113 @@ watch(
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 60px 20px;
-    background: linear-gradient(135deg, #f8f9ff 0%, #fff 100%);
-    border: 2px dashed #d3d4d6;
-    border-radius: 12px;
-    cursor: pointer;
-    transition: all 0.3s ease;
+    padding: 64px 24px;
+    border-radius: 18px;
+    border: 1px dashed rgba(108, 99, 255, 0.45);
+    background: linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.8) 0%,
+      rgba(255, 255, 255, 0.58) 100%
+    );
+    transition: all 0.28s ease;
+    backdrop-filter: blur(12px);
 
     &:hover {
-      border-color: #667eea;
-      background: linear-gradient(135deg, #f0f4ff 0%, #fff 100%);
+      border-color: rgba(255, 110, 199, 0.68);
+      transform: translateY(-4px);
+      box-shadow: 0 18px 30px rgba(255, 110, 199, 0.24);
 
       .upload-icon {
-        color: #667eea;
-        transform: scale(1.1);
+        color: var(--dopamine-primary);
+        transform: scale(1.12) rotate(-3deg);
       }
     }
 
     .upload-icon {
-      color: #909399;
-      margin-bottom: 16px;
-      transition: all 0.3s ease;
+      color: var(--dopamine-secondary);
+      margin-bottom: 18px;
+      transition: inherit;
     }
 
     .upload-text {
-      margin: 0 0 8px;
-      font-size: 16px;
-      font-weight: 500;
-      color: #303133;
+      margin: 0 0 6px;
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      color: var(--dopamine-contrast);
     }
 
     .upload-hint {
       margin: 0;
       font-size: 14px;
-      color: #909399;
+      color: var(--dopamine-soft-ink);
     }
   }
 
   .upload-tip {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 6px;
-    margin-top: 16px;
-    padding: 12px;
-    background: #fff7e6;
-    border-radius: 8px;
-    font-size: 13px;
-    color: #e6a23c;
+    gap: 8px;
+    margin-top: 18px;
+    padding: 14px 18px;
+    border-radius: 14px;
+    font-size: 14px;
+    color: #8b6914;
+    @include dopamine.dopamine-chip(#ffb347);
 
     .el-icon {
-      font-size: 16px;
+      font-size: 18px;
     }
   }
 }
 
-/* 文件列表样式 */
 :deep(.el-upload-list) {
-  margin-top: 20px;
+  margin-top: 22px;
 
   .el-upload-list__item {
-    padding: 12px;
-    border-radius: 8px;
-    border: 1px solid #e4e7ed;
-    transition: all 0.3s ease;
+    padding: 14px 16px;
+    border-radius: 14px;
+    border: 1px solid rgba(108, 99, 255, 0.2);
+    transition: all 0.25s ease;
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(10px);
 
     &:hover {
-      border-color: #667eea;
-      background: #f8f9ff;
+      border-color: rgba(255, 110, 199, 0.5);
+      box-shadow: 0 12px 28px rgba(108, 99, 255, 0.22);
     }
   }
 }
 
-/* 操作按钮 */
 .action-buttons {
   display: flex;
-  gap: 16px;
-  margin-top: 24px;
-  padding-top: 24px;
-  border-top: 1px solid #ebeef5;
+  gap: 18px;
+  margin-top: 26px;
+  padding-top: 26px;
+  border-top: 1px solid rgba(255, 255, 255, 0.55);
 
   .submit-btn {
     flex: 1;
-    height: 48px;
+    height: 52px;
     font-size: 16px;
-    font-weight: 500;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border: none;
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-    transition: all 0.3s ease;
-
-    &:hover:not(:disabled) {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
-    }
-
-    &:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    @include dopamine.dopamine-primary-button();
   }
 
   .cancel-btn {
-    height: 48px;
-    padding: 0 32px;
+    height: 52px;
+    padding: 0 34px;
     font-size: 16px;
-    border-radius: 8px;
+    border-radius: 14px;
+    @include dopamine.dopamine-ghost-button();
   }
 }
 
-/* 响应式设计 */
 @media (max-width: 991px) {
   .main-content {
-    grid-template-columns: 1fr;
-    padding: 0 20px;
-    gap: 20px;
-  }
-
-  .page-header .header-content {
-    padding: 20px;
     flex-direction: column;
-    text-align: center;
-
-    .header-icon {
-      width: 56px;
-      height: 56px;
-    }
-
-    .header-text .page-title {
-      font-size: 24px;
-    }
+    padding-inline: 20px;
   }
 
   .action-buttons {
@@ -777,22 +726,22 @@ watch(
 
 @media (max-width: 768px) {
   .data-upload-page {
-    padding: 20px 0;
+    padding: 28px 0;
   }
 
   .main-content {
-    padding: 0 16px;
-    gap: 16px;
+    padding-inline: 18px;
+    gap: 18px;
   }
 
   .config-card,
   .upload-card {
     :deep(.el-card__body) {
-      padding: 16px;
+      padding: 20px;
     }
 
     :deep(.el-card__header) {
-      padding: 16px;
+      padding: 18px 20px;
     }
   }
 
@@ -800,7 +749,7 @@ watch(
     :deep(.el-form-item__label) {
       width: 100% !important;
       text-align: left;
-      margin-bottom: 8px;
+      margin-bottom: 10px;
     }
   }
 }

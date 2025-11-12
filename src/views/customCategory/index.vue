@@ -744,75 +744,104 @@ const handleSizeChange = (size: number) => {
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
+@use "@/style/dopamine.scss" as dopamine;
+
 .custom-category-page {
-  padding: 12px;
+  @include dopamine.dopamine-page();
+  padding: 32px;
   min-height: calc(100vh - 80px);
-  background: #f7f9fc;
   box-sizing: border-box;
+  color: var(--dopamine-contrast);
 }
 
 .category-card {
   width: 100%;
-  margin: 0;
-  padding: 16px;
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(32, 45, 61, 0.06);
+  border-radius: 28px;
+  border: none;
+  padding: 0;
+  @include dopamine.dopamine-surface(28px);
+
+  :deep(.el-card__body) {
+    padding: 28px;
+    background: transparent;
+  }
 }
 
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
+  @include dopamine.dopamine-card-header();
+  border-radius: 28px 28px 0 0;
 }
 
 .card-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  @include dopamine.dopamine-punchy-text();
 }
 
 .filter-section {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-  padding: 12px;
-  background: #f5f7fa;
-  border-radius: 6px;
+  gap: 18px;
+  margin: 24px 0;
+  padding: 18px 22px;
+  border-radius: 20px;
+  background: linear-gradient(
+    135deg,
+    rgba(108, 99, 255, 0.18) 0%,
+    rgba(255, 110, 199, 0.18) 50%,
+    rgba(45, 226, 230, 0.18) 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(18px);
 }
 
 .filter-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 14px;
 }
 
 .table-wrapper {
   width: 100%;
   overflow-x: auto;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 20px 40px rgba(31, 18, 53, 0.15);
 }
 
 .editable-cell {
   width: 100%;
-  min-height: 32px;
+  min-height: 36px;
 }
 
 .edit-wrapper {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   align-items: stretch;
 }
 
 .edit-actions {
   display: flex;
   justify-content: center;
-  gap: 8px;
-  padding: 4px 0;
+  gap: 12px;
+  padding: 6px 0;
+
+  :deep(.el-button) {
+    @include dopamine.dopamine-ghost-button();
+    padding: 0 12px;
+  }
 }
 
 .cell-content {
@@ -820,25 +849,29 @@ const handleSizeChange = (size: number) => {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 4px 8px;
+  padding: 6px 10px;
   cursor: pointer;
-  border-radius: 4px;
-  transition: background-color 0.2s;
-  min-height: 32px;
-}
+  border-radius: 12px;
+  min-height: 36px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+  box-shadow: 0 6px 12px rgba(31, 18, 53, 0.1);
 
-.cell-content:hover {
-  background-color: var(--el-fill-color-light);
+  &:hover {
+    border-color: rgba(108, 99, 255, 0.4);
+    box-shadow: 0 12px 24px rgba(108, 99, 255, 0.2);
+  }
 }
 
 .empty-text {
-  color: var(--el-text-color-placeholder);
-  font-size: 12px;
+  color: var(--dopamine-soft-ink);
+  font-size: 13px;
 }
 
 .edit-icon {
-  color: var(--el-color-primary);
-  font-size: 14px;
+  color: var(--dopamine-secondary);
+  font-size: 16px;
   opacity: 0;
   transition: opacity 0.2s;
 }
@@ -848,19 +881,77 @@ const handleSizeChange = (size: number) => {
 }
 
 .no-image {
-  color: var(--el-text-color-placeholder);
+  color: var(--dopamine-soft-ink);
   font-size: 12px;
 }
 
 .pagination-wrapper {
   display: flex;
   justify-content: flex-end;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--el-border-color-light);
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+:deep(.el-table) {
+  background: transparent;
+  color: var(--dopamine-contrast);
+}
+
+:deep(.el-table__header tr) {
+  background: rgba(255, 255, 255, 0.8);
+}
+
+:deep(.el-table tr) {
+  background: rgba(255, 255, 255, 0.72);
 }
 
 :deep(.el-table .cell) {
-  padding: 8px;
+  padding: 10px;
+}
+
+:deep(.el-button--primary) {
+  @include dopamine.dopamine-primary-button();
+}
+
+:deep(.el-pagination.is-background .el-pager li.is-active) {
+  background: linear-gradient(
+    120deg,
+    var(--dopamine-secondary) 0%,
+    var(--dopamine-primary) 90%
+  );
+  box-shadow: 0 12px 22px rgba(108, 99, 255, 0.3);
+}
+
+@media (max-width: 1024px) {
+  .custom-category-page {
+    padding: 24px 20px;
+  }
+
+  .filter-section {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+@media (max-width: 768px) {
+  .custom-category-page {
+    padding: 20px 16px;
+  }
+
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  :deep(.el-card__body) {
+    padding: 20px;
+  }
+
+  .filter-left {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 </style>
+

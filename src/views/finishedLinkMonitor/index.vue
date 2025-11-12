@@ -159,26 +159,26 @@ const WINDOWS = [1, 3, 7, 15, 30];
 
 /** 窗口颜色映射 */
 const WINDOW_COLORS: Record<number, string> = {
-  1: "#ef4444", // 红色 - 1天（最紧急）
-  3: "#f97316", // 橙色 - 3天（短期）
-  7: "#eab308", // 黄色 - 7天（中期）
-  15: "#3b82f6", // 蓝色 - 15天（中长期）
-  30: "#1e40af" // 深蓝色 - 30天（长期）
+  1: "#FF6F91",
+  3: "#FF9B6A",
+  7: "#FFD33D",
+  15: "#6C63FF",
+  30: "#2DE2E6"
 };
 
 /** 变化等级颜色 */
 const levelColors: Record<ChangeLevel, string> = {
-  极小: "#6b7280",
-  轻微: "#10b981",
-  一般: "#f59e0b",
-  明显: "#f97316",
-  剧烈: "#ef4444"
+  极小: "#6C63FF",
+  轻微: "#2DE2E6",
+  一般: "#FF9B6A",
+  明显: "#FF6F91",
+  剧烈: "#FF3F6C"
 };
 
 /** 方向颜色 */
 const directionColors = {
-  "+": "#10b981",
-  "-": "#ef4444"
+  "+": "#2DE2E6",
+  "-": "#FF6F91"
 };
 
 function loadMockData() {
@@ -635,20 +635,7 @@ onMounted(() => {
               inactive-text="未关注"
               @change="val => toggleFollow(p.id, !!val)"
             />
-            <div
-              v-if="isFollowed(p.id)"
-              class="follow-time"
-              style="
-                position: absolute;
-                right: 50px;
-                top: 30px;
-                background: #fff;
-                padding: 2px 8px;
-                border-radius: 6px;
-                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-                z-index: 2;
-              "
-            >
+            <div v-if="isFollowed(p.id)" class="follow-time">
               {{ followTimeText(p.id) }}
             </div>
             <!-- <div v-if="isFollowed(p.id)" class="follow-time">
@@ -969,155 +956,187 @@ onMounted(() => {
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
+@use "@/style/dopamine.scss" as dopamine;
+
 .finished-monitor-page {
-  padding: 20px;
-  background: #f6f8fb;
+  @include dopamine.dopamine-page();
+  padding: 32px;
   min-height: calc(100vh - 80px);
   box-sizing: border-box;
+  color: var(--dopamine-contrast);
 }
 
 .controls {
-  display: flex;
+  @include dopamine.dopamine-toolbar();
   justify-content: flex-end;
-  margin-bottom: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  background: linear-gradient(
+    120deg,
+    rgba(255, 255, 255, 0.9) 0%,
+    rgba(108, 99, 255, 0.22) 55%,
+    rgba(255, 110, 199, 0.2) 100%
+  );
 }
 
 .cards {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  margin-bottom: 20px;
+  gap: 20px;
+  margin-bottom: 24px;
 }
 
 .pagination-wrapper {
   display: flex;
-  justify-content: right;
-  margin-top: 20px;
-  padding: 20px 0;
+  justify-content: flex-end;
+  margin-top: 24px;
+  padding: 16px 0 8px;
 }
 
 .prod-card {
-  padding: 16px;
-  border-radius: 10px;
   position: relative;
+  padding: 24px;
+  border-radius: 24px;
+  border: none;
+  @include dopamine.dopamine-surface(24px);
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border 0.25s ease;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow:
+      0 24px 48px rgba(255, 110, 199, 0.28),
+      0 16px 32px rgba(108, 99, 255, 0.22);
+  }
+
+  &.prod-followed {
+    box-shadow:
+      0 26px 54px rgba(108, 99, 255, 0.34),
+      0 18px 36px rgba(45, 226, 230, 0.24);
+    border: 1px solid rgba(108, 99, 255, 0.4);
+  }
 }
 
-/* 当关注开关打开时，整个卡片背景变为浅灰 */
-.prod-card.prod-followed {
-  background-color: #e3e5e8;
-}
-
-/* 顶部行：图+元信息 */
 .card-row.top {
   display: flex;
-  gap: 16px;
+  gap: 18px;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
 }
 
 .left .prod-img {
   width: 120px;
   height: 120px;
   object-fit: cover;
-  border-radius: 8px;
-  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 12px 24px rgba(31, 18, 53, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.6);
 }
 
 .left .prod-img.placeholder {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #9aa8bf;
-  background: #f2f6fb;
+  color: var(--dopamine-secondary);
+  background: rgba(108, 99, 255, 0.1);
 }
 
-/* 元信息 */
 .meta {
   flex: 1;
+  min-width: 240px;
 }
+
 .meta .id {
-  font-weight: 600;
+  font-weight: 700;
   font-size: 14px;
   margin-bottom: 6px;
+  letter-spacing: 0.3px;
 }
+
 .meta .name {
-  font-size: 16px;
-  color: #2b2b2b;
-  margin-bottom: 8px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--dopamine-contrast);
+  margin-bottom: 10px;
 }
+
 .warn-row {
   display: flex;
   gap: 10px;
   align-items: center;
-}
-.warn-msg {
-  color: #606266;
-  font-size: 13px;
+  margin-bottom: 8px;
 }
 
-/* 警告信息列表 */
 .warning-messages {
-  margin-top: 8px;
+  margin-top: 10px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .warning-message-item {
   display: flex;
   align-items: flex-start;
-  gap: 6px;
-  padding: 8px 12px;
-  background: #fff7e6;
-  border-left: 3px solid #f59e0b;
-  border-radius: 4px;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 12px;
   font-size: 13px;
-  color: #8b6914;
-  line-height: 1.5;
+  line-height: 1.6;
+  color: #7a4b0f;
+  @include dopamine.dopamine-chip(#ffd33d);
 }
 
 .warning-icon {
-  color: #f59e0b;
-  font-size: 16px;
+  color: #ff9b6a;
+  font-size: 18px;
   margin-top: 2px;
   flex-shrink: 0;
 }
 
-/* 右侧关注区域，固定靠右显示 */
 .follow-area {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  width: 160px;
+  align-items: flex-end;
+  gap: 10px;
+  min-width: 160px;
+  position: relative;
 }
 
-/* 关注时间显示（本地时间） */
 .follow-time {
   font-size: 12px;
-  color: #909399;
+  color: var(--dopamine-soft-ink);
+  background: rgba(255, 255, 255, 0.8);
+  padding: 4px 10px;
+  border-radius: 10px;
+  box-shadow: 0 10px 18px rgba(31, 18, 53, 0.15);
 }
 
-/* 指标区域：分多块竖向排列（行内显示五个值） */
 .metrics {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
 }
 
-/* 单个指标块 */
 .metric-block {
-  background: #ffffff;
-  border-radius: 8px;
-  padding: 10px;
-  box-shadow: 0 6px 12px rgba(32, 45, 61, 0.04);
+  border-radius: 20px;
+  padding: 16px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: linear-gradient(
+    140deg,
+    rgba(255, 255, 255, 0.9) 0%,
+    rgba(45, 226, 230, 0.16) 45%,
+    rgba(108, 99, 255, 0.12) 100%
+  );
+  backdrop-filter: blur(10px);
+  box-shadow: 0 12px 22px rgba(31, 18, 53, 0.12);
 }
 
 .metric-title {
-  font-size: 13px;
-  color: #606266;
-  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dopamine-soft-ink);
+  margin-bottom: 12px;
   text-align: left;
 }
 
@@ -1125,64 +1144,60 @@ onMounted(() => {
   display: flex;
   gap: 12px;
   align-items: center;
-  justify-content: flex-start;
   flex-wrap: wrap;
 }
 
 .metric-value {
-  padding: 6px 10px;
-  border-radius: 4px;
-  min-width: 72px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  min-width: 76px;
   text-align: center;
-  font-weight: 500;
-  color: #303133;
-  background: #f5f7fa;
-  border: 1px solid #e4e7ed;
+  font-weight: 600;
   font-size: 14px;
+  color: var(--dopamine-contrast);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow: 0 6px 12px rgba(31, 18, 53, 0.12);
 }
 
-/* 滑动窗口波动率显示样式 */
 .volatility-values {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
 }
 
 .volatility-item {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  background: #ffffff;
-  border: 2px solid;
-  border-radius: 6px;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
   font-size: 13px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  border: 2px solid;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 6px 14px rgba(31, 18, 53, 0.12);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-/* 轻微和一般不突出显示 */
 .volatility-item.volatility-subtle {
-  opacity: 0.6;
+  opacity: 0.72;
   border-width: 1px;
   box-shadow: none;
 }
 
-/* 明显和剧烈突出显示 */
 .volatility-item.volatility-highlight {
-  border-width: 3px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-  font-weight: 600;
   transform: scale(1.05);
+  box-shadow: 0 12px 24px rgba(255, 110, 199, 0.28);
 }
 
 .volatility-window {
   font-weight: 700;
   font-size: 12px;
-  min-width: 32px;
+  min-width: 36px;
 }
 
 .volatility-direction {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 700;
   min-width: 20px;
   text-align: center;
@@ -1190,31 +1205,81 @@ onMounted(() => {
 
 .volatility-strength {
   font-weight: 600;
-  font-size: 13px;
-  min-width: 55px;
+  font-size: 14px;
+  min-width: 58px;
 }
 
 .volatility-level {
   font-size: 11px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-weight: 500;
-  margin-left: 2px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.6);
 }
 
-/* 响应式 */
-@media (max-width: 900px) {
-  .metric-values {
-    gap: 8px;
+:deep(.el-button--primary) {
+  @include dopamine.dopamine-primary-button();
+}
+
+:deep(.el-button--default) {
+  @include dopamine.dopamine-ghost-button();
+}
+
+:deep(.el-tag) {
+  border-radius: 999px;
+  padding-inline: 14px;
+  font-weight: 600;
+}
+
+:deep(.el-dialog__body) {
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--dopamine-contrast);
+}
+
+@media (max-width: 1024px) {
+  .finished-monitor-page {
+    padding: 24px 20px;
   }
-  .metric-value {
-    min-width: 60px;
-    font-size: 13px;
-    padding: 6px 8px;
+
+  .controls {
+    justify-content: center;
+    gap: 12px;
   }
+
+  .follow-area {
+    width: 100%;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 768px) {
+  .finished-monitor-page {
+    padding: 20px 16px;
+  }
+
+  .card-row.top {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .follow-area {
+    align-items: stretch;
+  }
+
+  .controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .metrics {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+
   .left .prod-img {
-    width: 96px;
-    height: 96px;
+    width: 100%;
+    height: auto;
+    max-width: 220px;
   }
 }
 </style>
+

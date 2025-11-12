@@ -1,3 +1,5 @@
+@use "dopamine" as dopamine;
+
 /* 亮白色 */
 html[data-theme="light"] {
   --pure-theme-sub-menu-active-text: #000000d9;
@@ -92,4 +94,17 @@ html[data-theme="auroraGreen"] {
   --pure-theme-sidebar-logo: #112f21;
   --pure-theme-menu-title-hover: #fff;
   --pure-theme-menu-active-before: #60ac80;
+}
+
+/* 多巴胺 */
+html[data-theme="dopamine"] {
+  @include dopamine.dopamine-vars;
+  --pure-theme-sub-menu-active-text: #ffffff;
+  --pure-theme-menu-bg: rgba(31, 18, 53, 0.82);
+  --pure-theme-menu-hover: rgba(255, 255, 255, 0.08);
+  --pure-theme-sub-menu-bg: rgba(31, 18, 53, 0.45);
+  --pure-theme-menu-text: rgba(255, 255, 255, 0.82);
+  --pure-theme-sidebar-logo: rgba(31, 18, 53, 0.88);
+  --pure-theme-menu-title-hover: #ffd33d;
+  --pure-theme-menu-active-before: rgba(255, 110, 199, 0.85);
 }

@@ -1,3 +1,5 @@
+@use "dopamine" as dopamine;
+
 /* $sideBarWidth: vertical 模式下主体内容距离网页文档左侧的距离 */
 @mixin merge-style($sideBarWidth) {
   @media screen and (width >= 150px) and (width <= 420px) {
@@ -712,5 +714,196 @@ body[layout="mix"] {
         }
       }
     }
+  }
+}
+
+html[data-theme="dopamine"] {
+  .sidebar-logo-container {
+    background: linear-gradient(
+      120deg,
+      rgba(108, 99, 255, 0.95) 0%,
+      rgba(255, 110, 199, 0.92) 55%,
+      rgba(255, 211, 61, 0.85) 100%
+    ) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.28);
+    box-shadow: 0 14px 32px rgba(108, 99, 255, 0.32);
+  }
+
+  .sidebar-container {
+    @include dopamine.dopamine-vars;
+    position: relative;
+    background:
+      radial-gradient(
+        circle at 18% 12%,
+        rgba(255, 110, 199, 0.3) 0,
+        transparent 52%
+      ),
+      radial-gradient(
+        circle at 82% 8%,
+        rgba(45, 226, 230, 0.28) 0,
+        transparent 58%
+      ),
+      linear-gradient(182deg, rgba(31, 18, 53, 0.96) 0%, rgba(31, 18, 53, 0.78) 100%);
+    border-right: 1px solid var(--dopamine-line);
+    box-shadow:
+      0 20px 46px var(--dopamine-shadow-primary),
+      0 14px 34px var(--dopamine-shadow-secondary),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(var(--dopamine-backdrop-blur));
+    overflow: visible;
+
+    &::before {
+      content: "";
+      position: absolute;
+      inset: 18px 12px 64px 16px;
+      border-radius: 22px;
+      background: linear-gradient(
+        150deg,
+        rgba(255, 255, 255, 0.16),
+        rgba(255, 255, 255, 0.05)
+      );
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      pointer-events: none;
+      box-shadow: inset 0 0 36px rgba(255, 255, 255, 0.08);
+    }
+
+    .scrollbar-wrapper {
+      padding: 22px 8px 78px;
+    }
+
+    .el-menu {
+      position: relative;
+      z-index: 1;
+      padding: 0 6px 30px;
+      --el-menu-hover-bg-color: rgba(255, 255, 255, 0.08) !important;
+      --el-menu-hover-text-color: var(--dopamine-accent) !important;
+      --el-menu-active-color: #fff !important;
+    }
+
+    .el-menu-item,
+    .el-sub-menu__title {
+      position: relative;
+      margin: 6px 14px;
+      padding: 0 20px;
+      height: 48px;
+      line-height: 48px;
+      color: rgba(255, 255, 255, 0.85);
+      border-radius: 16px;
+      transition:
+        color 0.3s ease,
+        background 0.3s ease,
+        transform 0.3s ease,
+        box-shadow 0.3s ease;
+      z-index: 0;
+
+      &::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: 16px;
+        background: linear-gradient(
+          140deg,
+          rgba(255, 255, 255, 0.18),
+          rgba(255, 255, 255, 0.06)
+        );
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        z-index: -1;
+      }
+
+      &:hover {
+        color: var(--dopamine-accent) !important;
+        box-shadow:
+          0 18px 32px rgba(108, 99, 255, 0.28),
+          0 8px 20px rgba(255, 110, 199, 0.22);
+      }
+
+      &:hover::after {
+        opacity: 1;
+      }
+    }
+
+    .el-menu:not(.el-menu--collapse) {
+      .el-menu-item:hover,
+      .el-sub-menu__title:hover {
+        transform: translateX(6px);
+      }
+    }
+
+    .el-menu.el-menu--collapse {
+      padding: 10px 0 26px;
+
+      .el-menu-item,
+      .el-sub-menu__title {
+        margin: 8px 8px;
+        padding: 0;
+        justify-content: center;
+        text-align: center;
+
+        &:hover {
+          transform: none;
+        }
+      }
+    }
+
+    .el-menu-item.is-active,
+    .is-active > .el-sub-menu__title {
+      color: #fff !important;
+      text-shadow: 0 0 14px rgba(255, 211, 61, 0.48);
+    }
+
+    .el-menu-item.is-active::after,
+    .is-active.submenu-title-noDropdown.outer-most::after,
+    .is-active > .el-sub-menu__title::after {
+      content: "";
+      position: absolute;
+      inset: 3px;
+      border-radius: 14px;
+      background: linear-gradient(
+        135deg,
+        var(--dopamine-secondary) 0%,
+        var(--dopamine-primary) 55%,
+        var(--dopamine-accent) 100%
+      );
+      box-shadow:
+        0 18px 36px rgba(108, 99, 255, 0.35),
+        0 12px 24px rgba(255, 110, 199, 0.28);
+      opacity: 1;
+      z-index: -1;
+    }
+
+    .el-menu-item.is-active::before,
+    .is-active.submenu-title-noDropdown.outer-most::before,
+    .el-menu-item.is-active.nest-menu::before {
+      display: none !important;
+    }
+
+    .el-menu .el-menu--inline .el-sub-menu__title,
+    & .el-sub-menu .el-menu-item {
+      margin: 4px 16px;
+      padding: 0 18px;
+      background-color: rgba(255, 255, 255, 0.05) !important;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 14px;
+    }
+
+    .el-menu .el-menu--inline .el-menu-item {
+      padding-left: 24px !important;
+    }
+  }
+
+  .sidebar-container .center-collapse,
+  .sidebar-container .left-collapse {
+    background: linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.16),
+      rgba(255, 255, 255, 0.04)
+    ) !important;
+    border: 1px solid rgba(255, 255, 255, 0.18) !important;
+    box-shadow: 0 -20px 36px rgba(31, 18, 53, 0.45) !important;
+  }
+
+  .sidebar-container .left-collapse {
+    color: var(--dopamine-primary);
   }
 }
