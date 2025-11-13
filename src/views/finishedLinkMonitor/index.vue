@@ -159,26 +159,26 @@ const WINDOWS = [1, 3, 7, 15, 30];
 
 /** 窗口颜色映射 */
 const WINDOW_COLORS: Record<number, string> = {
-  1: "#FF6F91",
-  3: "#FF9B6A",
-  7: "#FFD33D",
-  15: "#6C63FF",
-  30: "#2DE2E6"
+  1: "#E91E63", // 更深的粉红色
+  3: "#FF5722", // 更深的橙红色
+  7: "#FFC107", // 更深的黄色
+  15: "#3F51B5", // 更深的蓝色
+  30: "#00BCD4" // 更深的青色
 };
 
 /** 变化等级颜色 */
 const levelColors: Record<ChangeLevel, string> = {
-  极小: "#6C63FF",
-  轻微: "#2DE2E6",
-  一般: "#FF9B6A",
-  明显: "#FF6F91",
-  剧烈: "#FF3F6C"
+  极小: "#3F51B5", // 更深的蓝色
+  轻微: "#00BCD4", // 更深的青色
+  一般: "#FF5722", // 更深的橙红色
+  明显: "#E91E63", // 更深的粉红色
+  剧烈: "#C2185B" // 更深的深粉红色
 };
 
 /** 方向颜色 */
 const directionColors = {
-  "+": "#2DE2E6",
-  "-": "#FF6F91"
+  "+": "#00BCD4", // 更深的青色
+  "-": "#E91E63" // 更深的粉红色
 };
 
 function loadMockData() {
@@ -680,7 +680,7 @@ onMounted(() => {
                 }"
                 :style="{
                   borderColor: WINDOW_COLORS[window],
-                  backgroundColor: WINDOW_COLORS[window] + '10'
+                  backgroundColor: WINDOW_COLORS[window] + '40'
                 }"
               >
                 <template
@@ -697,14 +697,14 @@ onMounted(() => {
                   >
                     <span
                       class="volatility-window"
-                      :style="{ color: WINDOW_COLORS[window] }"
+                      :style="{ color: '#000000' }"
                     >
                       {{ window }}天
                     </span>
                     <span
                       class="volatility-direction"
                       :style="{
-                        color: directionColors[vol.direction]
+                        color: '#000000'
                       }"
                     >
                       {{ vol.direction === "+" ? "↑" : "↓" }}
@@ -712,7 +712,7 @@ onMounted(() => {
                     <span
                       class="volatility-strength"
                       :style="{
-                        color: directionColors[vol.direction]
+                        color: '#000000'
                       }"
                     >
                       {{ formatVolatilityStrength(vol.strength) }}%
@@ -720,9 +720,8 @@ onMounted(() => {
                     <span
                       class="volatility-level"
                       :style="{
-                        color: levelColors[vol.level],
-                        backgroundColor:
-                          (levelColors[vol.level] || '#6b7280') + '20'
+                        color: '#000000',
+                        backgroundColor: levelColors[vol.level] || '#6b7280'
                       }"
                     >
                       [{{ vol.level }}]
@@ -768,7 +767,7 @@ onMounted(() => {
                 }"
                 :style="{
                   borderColor: WINDOW_COLORS[window],
-                  backgroundColor: WINDOW_COLORS[window] + '10'
+                  backgroundColor: WINDOW_COLORS[window] + '40'
                 }"
               >
                 <template
@@ -785,14 +784,14 @@ onMounted(() => {
                   >
                     <span
                       class="volatility-window"
-                      :style="{ color: WINDOW_COLORS[window] }"
+                      :style="{ color: '#000000' }"
                     >
                       {{ window }}天
                     </span>
                     <span
                       class="volatility-direction"
                       :style="{
-                        color: directionColors[vol.direction]
+                        color: '#000000'
                       }"
                     >
                       {{ vol.direction === "+" ? "↑" : "↓" }}
@@ -800,7 +799,7 @@ onMounted(() => {
                     <span
                       class="volatility-strength"
                       :style="{
-                        color: directionColors[vol.direction]
+                        color: '#000000'
                       }"
                     >
                       {{ formatVolatilityStrength(vol.strength) }}%
@@ -808,9 +807,8 @@ onMounted(() => {
                     <span
                       class="volatility-level"
                       :style="{
-                        color: levelColors[vol.level],
-                        backgroundColor:
-                          (levelColors[vol.level] || '#6b7280') + '20'
+                        color: '#000000',
+                        backgroundColor: levelColors[vol.level] || '#6b7280'
                       }"
                     >
                       [{{ vol.level }}]
@@ -856,7 +854,7 @@ onMounted(() => {
                 }"
                 :style="{
                   borderColor: WINDOW_COLORS[window],
-                  backgroundColor: WINDOW_COLORS[window] + '10'
+                  backgroundColor: WINDOW_COLORS[window] + '40'
                 }"
               >
                 <template
@@ -873,14 +871,14 @@ onMounted(() => {
                   >
                     <span
                       class="volatility-window"
-                      :style="{ color: WINDOW_COLORS[window] }"
+                      :style="{ color: '#000000' }"
                     >
                       {{ window }}天
                     </span>
                     <span
                       class="volatility-direction"
                       :style="{
-                        color: directionColors[vol.direction]
+                        color: '#000000'
                       }"
                     >
                       {{ vol.direction === "+" ? "↑" : "↓" }}
@@ -888,7 +886,7 @@ onMounted(() => {
                     <span
                       class="volatility-strength"
                       :style="{
-                        color: directionColors[vol.direction]
+                        color: '#000000'
                       }"
                     >
                       {{ formatVolatilityStrength(vol.strength) }}%
@@ -896,9 +894,8 @@ onMounted(() => {
                     <span
                       class="volatility-level"
                       :style="{
-                        color: levelColors[vol.level],
-                        backgroundColor:
-                          (levelColors[vol.level] || '#6b7280') + '20'
+                        color: '#FFFFFF',
+                        backgroundColor: levelColors[vol.level] || '#6b7280'
                       }"
                     >
                       [{{ vol.level }}]
@@ -1000,7 +997,10 @@ onMounted(() => {
   border-radius: 24px;
   border: none;
   @include dopamine.dopamine-surface(24px);
-  transition: transform 0.25s ease, box-shadow 0.25s ease, border 0.25s ease;
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease,
+    border 0.25s ease;
 
   &:hover {
     transform: translateY(-4px);
@@ -1176,7 +1176,9 @@ onMounted(() => {
   border: 2px solid;
   background: rgba(255, 255, 255, 0.78);
   box-shadow: 0 6px 14px rgba(31, 18, 53, 0.12);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .volatility-item.volatility-subtle {
@@ -1282,4 +1284,3 @@ onMounted(() => {
   }
 }
 </style>
-

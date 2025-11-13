@@ -243,11 +243,27 @@ function initPieChart(container: HTMLElement) {
         },
         label: {
           show: true,
+          fontSize: 14,
+          fontWeight: 600,
+          color: "#1f1235",
           formatter: (params: any) => {
             const total = params.data?.total || 0;
             const percentage =
               total > 0 ? ((params.value / total) * 100).toFixed(1) : "0.0";
             return `${params.name}\n${percentage}%`;
+          },
+          textStyle: {
+            fontSize: 14,
+            fontWeight: 600,
+            color: "#1f1235"
+          }
+        },
+        labelLine: {
+          show: true,
+          length: 15,
+          length2: 10,
+          lineStyle: {
+            width: 2
           }
         },
         data: []
@@ -1080,20 +1096,26 @@ onUnmounted(() => {
 }
 
 .stage-label {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
   letter-spacing: 0.4px;
+  color: #1f1235;
 }
 
 .stage-value {
-  font-size: 20px;
+  font-size: 24px;
   font-weight: 700;
-  margin: 6px 0;
+  margin: 8px 0;
+  color: #1f1235;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .stage-percentage {
-  font-size: 12px;
-  opacity: 0.85;
+  font-size: 16px;
+  font-weight: 600;
+  opacity: 1;
+  color: #1f1235;
+  margin-top: 4px;
 }
 
 .stage-detail-btn {
