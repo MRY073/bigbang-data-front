@@ -2,8 +2,13 @@
 import { ref, computed, onMounted, shallowRef, watch } from "vue";
 import { ElMessage, ElLoading } from "element-plus";
 import type { LoadingInstance } from "element-plus";
-import { getProducts, updateProductStage } from "@/api/products";
+import {
+  getProducts,
+  updateProductStage,
+  offlineProduct
+} from "@/api/products";
 import { getCustomCategoryOptions } from "@/api/productItems";
+import { shopOptions, DEFAULT_SHOP_ID, getShopOption } from "@/constants/shops";
 
 defineOptions({ name: "ProductStageManual" });
 
@@ -58,6 +63,9 @@ type ProductRow = {
   currentStage?: StageType | null;
   customCategories: string[];
   customCategoriesText: string;
+  // 下架状态
+  isOfflining?: boolean;
+  isOfflined?: boolean;
 };
 
 // 阶段类型映射
@@ -75,7 +83,7 @@ type FilterStageType = "all" | StageType;
 const products = shallowRef<ProductRow[]>([]);
 const pageLoading = ref(false);
 const filterStage = ref<FilterStageType>("all");
-const selectedShop = ref<string>("1489850435"); // 默认选择第一个店铺
+const selectedShop = ref<string>(DEFAULT_SHOP_ID); // 默认选择第一个店铺
 
 // 产品筛选条件（输入框的值，不触发筛选）
 const productIdFilter = ref<string>("");
@@ -94,17 +102,7 @@ const pageSizes = [10, 20, 50, 100, 200]; // 每页数量选项
 type SortOrder = "default" | "asc" | "desc";
 const currentStageSort = ref<SortOrder>("default");
 
-// 店铺选项（与数据上传页面保持一致）
-const shopOptions = [
-  {
-    label: "Modern Nest|泰国",
-    value: "1489850435"
-  },
-  {
-    label: "shop07|泰国",
-    value: "1638595255"
-  }
-];
+// 店铺选项从共享常量导入
 
 const categoryFields: Array<
   | "custom_category_1"
@@ -120,6 +118,9 @@ const categoryFields: Array<
 
 const customCategoryOptions = ref<Array<{ label: string; value: string }>>([]);
 const selectedCustomCategory = ref<string>("");
+
+// 已下架的商品ID集合（用于隐藏按钮）
+const offlinedProducts = ref<Record<string, boolean>>({});
 
 function showLoader(text = "加载中..."): LoadingInstance {
   return ElLoading.service({ lock: true, text, background: "rgba(0,0,0,0.2)" });
@@ -372,7 +373,9 @@ function initProducts(backendProducts: BackendProduct[]) {
       },
       currentStage: null,
       customCategories,
-      customCategoriesText
+      customCategoriesText,
+      isOfflining: false,
+      isOfflined: false
     };
     row.currentStage = computeCurrentStageForRow(row);
     return row;
@@ -386,14 +389,15 @@ async function fetchData() {
     return;
   }
 
+  // 重新拉取数据时清空已下架商品记录
+  offlinedProducts.value = {};
+
   pageLoading.value = true;
   const loader = showLoader("拉取数据中...");
 
   try {
     // 将店铺ID和店铺名称作为查询参数传递
-    const shopOption = shopOptions.find(
-      opt => opt.value === selectedShop.value
-    );
+    const shopOption = getShopOption(selectedShop.value);
     if (!shopOption) {
       throw new Error("店铺信息不存在");
     }
@@ -443,7 +447,7 @@ async function updateSingleStage(
   startTime: string | null,
   endTime: string | null
 ): Promise<void> {
-  const shopOption = shopOptions.find(opt => opt.value === selectedShop.value);
+  const shopOption = getShopOption(selectedShop.value);
   if (!shopOption) {
     throw new Error("店铺信息不存在");
   }
@@ -695,12 +699,63 @@ function handleShopChange() {
   // 清空分类选项和选中分类
   customCategoryOptions.value = [];
   selectedCustomCategory.value = "";
+  // 清空已下架商品记录
+  offlinedProducts.value = {};
   // 如果选择了店铺，则获取分类选项
   if (selectedShop.value) {
     fetchCustomCategoryOptions();
   }
   // 重置到第一页
   currentPage.value = 1;
+}
+
+/**
+ * 下架商品
+ */
+async function handleOfflineProduct(productId: string) {
+  if (!selectedShop.value) {
+    ElMessage.warning("请先选择店铺");
+    return;
+  }
+
+  // 找到对应的商品行
+  const row = products.value.find(r => r.product_id === productId);
+  if (!row) {
+    ElMessage.error("商品不存在");
+    return;
+  }
+
+  // 如果已经下架，直接返回
+  if (row.isOfflined) {
+    return;
+  }
+
+  // 设置下架状态
+  row.isOfflining = true;
+
+  try {
+    const shopOption = getShopOption(selectedShop.value);
+    if (!shopOption) {
+      throw new Error("店铺信息不存在");
+    }
+
+    const result = await offlineProduct({
+      product_id: productId
+    });
+
+    if (result.success) {
+      // 将商品ID添加到已下架集合中，用于隐藏按钮
+      offlinedProducts.value[productId] = true;
+      ElMessage.success(result.message || "下架成功");
+    } else {
+      throw new Error(result.error || result.message || "下架失败");
+    }
+  } catch (error: any) {
+    console.error("下架商品失败:", error);
+    ElMessage.error(error?.message || "下架失败，请检查网络后重试");
+    // 失败时需要重置加载状态
+    row.isOfflining = false;
+  }
 }
 
 // 监听店铺变化
@@ -1064,7 +1119,6 @@ onMounted(() => {
             min-width="220"
             align="center"
             header-align="center"
-            fixed="right"
           >
             <template #default="{ row }">
               <div class="cell-center">
@@ -1076,6 +1130,27 @@ onMounted(() => {
                   {{ row.customCategoriesText }}
                 </span>
                 <span v-else class="dash">-</span>
+              </div>
+            </template>
+          </el-table-column>
+
+          <!-- 下架操作列 -->
+          <el-table-column
+            label="操作"
+            width="120"
+            align="center"
+            header-align="center"
+          >
+            <template #default="{ row }">
+              <div class="offline-actions">
+                <el-button
+                  v-if="!offlinedProducts[row.product_id]"
+                  type="danger"
+                  size="small"
+                  :loading="row.isOfflining"
+                  @click="handleOfflineProduct(row.product_id)"
+                  >下架</el-button
+                >
               </div>
             </template>
           </el-table-column>
@@ -1270,6 +1345,17 @@ onMounted(() => {
 .save-actions .el-button {
   width: 96px;
   @include dopamine.dopamine-primary-button();
+}
+
+.offline-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.offline-actions .el-button {
+  width: 96px;
 }
 
 .current-badge {

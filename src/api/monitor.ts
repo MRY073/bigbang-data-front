@@ -99,3 +99,39 @@ export const getPotentialLinkMonitorAISuggestion = (params: {
   );
 };
 
+// 批量AI建议响应类型
+export interface BatchAISuggestionResponse {
+  status: "new" | "running" | "exists"; // new: 新增任务, running: 正在执行, exists: 已存在
+  message?: string;
+}
+
+// 批量获取已完成链接监控的AI建议
+export const batchGetFinishedLinkMonitorAISuggestion = (params: {
+  shopID: string;
+  shopName: string;
+  date: string;
+}): Promise<ApiResponse<BatchAISuggestionResponse>> => {
+  return http.request<ApiResponse<BatchAISuggestionResponse>>(
+    "post",
+    "/api/finished/link/monitor/batch-ai-suggestion",
+    {
+      data: params
+    }
+  );
+};
+
+// 批量获取潜力链接监控的AI建议
+export const batchGetPotentialLinkMonitorAISuggestion = (params: {
+  shopID: string;
+  shopName: string;
+  date: string;
+}): Promise<ApiResponse<BatchAISuggestionResponse>> => {
+  return http.request<ApiResponse<BatchAISuggestionResponse>>(
+    "post",
+    "/api/potential/link/monitor/batch-ai-suggestion",
+    {
+      data: params
+    }
+  );
+};
+

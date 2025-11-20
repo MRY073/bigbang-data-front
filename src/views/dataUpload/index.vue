@@ -16,6 +16,7 @@ import {
   Check,
   Close
 } from "@element-plus/icons-vue";
+import { shopOptions, getShopOption } from "@/constants/shops";
 
 defineOptions({
   name: "DataUpload"
@@ -48,22 +49,12 @@ const uploadTypes = [
     value: "daily"
   },
   {
-    label: "商品ID更新（全量）",
+    label: "商品ID更新",
     value: "productID"
   }
 ];
 
-// 店铺选项
-const shopOptions = [
-  {
-    label: "Modern Nest|泰国",
-    value: "1489850435"
-  },
-  {
-    label: "shop07|泰国",
-    value: "1638595255"
-  }
-];
+// 店铺选项从共享常量导入
 
 // 根据文件名校验后缀（更稳健）
 const isValidExt = (name: string) => /\.(csv|xls|xlsx)$/i.test(name);
@@ -139,7 +130,7 @@ const handleUpload = async (formEl: FormInstance | undefined) => {
   const fd = new FormData();
   filesToSend.forEach((f, i) => fd.append(`files`, f));
   fd.append("type", formData.value.type); // 添加上传文件的类型（广告、商业分析、映射表）
-  const shopOption = shopOptions.find(opt => opt.value === formData.value.shop);
+  const shopOption = getShopOption(formData.value.shop);
   if (shopOption) {
     fd.append("shopID", formData.value.shop); // 添加店铺ID
     fd.append("shopName", shopOption.label); // 添加店铺名称
@@ -407,7 +398,9 @@ watch(
 .config-card,
 .upload-card {
   @include dopamine.dopamine-surface();
-  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
   overflow: hidden;
 
   &:hover {
@@ -656,11 +649,15 @@ watch(
     padding: 14px 18px;
     border-radius: 14px;
     font-size: 14px;
-    color: #8b6914;
+    font-weight: 600;
+    color: #5c3a00 !important;
+    letter-spacing: 0.3px;
     @include dopamine.dopamine-chip(#ffb347);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 
     .el-icon {
       font-size: 18px;
+      color: #5c3a00;
     }
   }
 }

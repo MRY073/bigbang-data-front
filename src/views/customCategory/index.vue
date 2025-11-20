@@ -1,29 +1,19 @@
 <script setup lang="ts">
 import { ref, shallowRef, nextTick, onMounted } from "vue";
-import { ElMessage, ElMessageBox, ElLoading } from "element-plus";
+import { ElMessage, ElLoading } from "element-plus";
 import type { LoadingInstance } from "element-plus";
 import { Edit, Refresh } from "@element-plus/icons-vue";
 import {
   updateProductItem,
-  deleteProductItem,
   getProductItems,
   getCustomCategoryOptions,
   type ProductItem
 } from "@/api/productItems";
+import { shopOptions, getShopOption } from "@/constants/shops";
 
 defineOptions({ name: "CustomCategory" });
 
-// 店铺选项
-const shopOptions = [
-  {
-    label: "Modern Nest|泰国",
-    value: "1489850435"
-  },
-  {
-    label: "shop07|泰国",
-    value: "1638595255"
-  }
-];
+// 店铺选项从共享常量导入
 
 // 选中的店铺
 const selectedShop = ref<string>("");
@@ -46,6 +36,12 @@ const editingMap = ref<Record<string, Record<string, boolean>>>({});
 // 自定义分类筛选
 const customCategoryOptions = ref<Array<{ label: string; value: string }>>([]);
 const selectedCustomCategory = ref<string>("");
+
+// 提示词备注弹窗相关
+const promptNoteDialogVisible = ref(false);
+const currentPromptNoteRow = ref<ProductItem | null>(null);
+const promptNoteText = ref("");
+const promptNoteMaxLength = 2000;
 
 const fetchCustomCategoryOptions = async () => {
   if (!selectedShop.value) {
@@ -150,9 +146,7 @@ const fetchProducts = async (resetPage = true) => {
 
   try {
     // 获取店铺信息
-    const shopOption = shopOptions.find(
-      opt => opt.value === selectedShop.value
-    );
+    const shopOption = getShopOption(selectedShop.value);
     if (!shopOption) {
       throw new Error("店铺信息不存在");
     }
@@ -348,39 +342,6 @@ const isEditing = (row: ProductItem, field: string): boolean => {
   return editingMap.value[key]?.[field] === true;
 };
 
-// 删除商品
-const handleDelete = async (row: ProductItem) => {
-  try {
-    await ElMessageBox.confirm(
-      `确定要删除商品 "${row.product_name}" 吗？`,
-      "提示",
-      {
-        confirmButtonText: "确定",
-        cancelButtonText: "取消",
-        type: "warning"
-      }
-    );
-
-    loading.value = true;
-    const id = row.id || row.product_id;
-    const response = await deleteProductItem(id);
-
-    if (response.success) {
-      ElMessage.success("删除成功");
-      await fetchProducts();
-    } else {
-      ElMessage.error(response.message || "删除失败");
-    }
-  } catch (error: any) {
-    if (error !== "cancel") {
-      console.error("删除失败:", error);
-      ElMessage.error(error?.message || "删除失败，请稍后重试");
-    }
-  } finally {
-    loading.value = false;
-  }
-};
-
 // 分页变化
 const handleCurrentChange = (page: number) => {
   currentPage.value = page;
@@ -395,6 +356,71 @@ const handleSizeChange = (size: number) => {
   if (selectedShop.value) {
     fetchProducts(false); // 不重置页码（因为上面已经重置了）
   }
+};
+
+// 打开提示词备注弹窗
+const openPromptNoteDialog = (row: ProductItem) => {
+  currentPromptNoteRow.value = row;
+  promptNoteText.value = row.prompt_note || "";
+  promptNoteDialogVisible.value = true;
+};
+
+// 关闭提示词备注弹窗
+const closePromptNoteDialog = () => {
+  promptNoteDialogVisible.value = false;
+  currentPromptNoteRow.value = null;
+  promptNoteText.value = "";
+};
+
+// 保存提示词备注
+const savePromptNote = async () => {
+  if (!currentPromptNoteRow.value) {
+    return;
+  }
+
+  const row = currentPromptNoteRow.value;
+  const key = `${row.id || row.product_id}`;
+
+  if (!row.id && !row.product_id) {
+    ElMessage.warning("商品ID不存在，无法保存");
+    return;
+  }
+
+  loading.value = true;
+  try {
+    const updateData: Partial<ProductItem> = {
+      prompt_note: promptNoteText.value.trim() || null
+    };
+
+    const id = row.id || row.product_id;
+    const response = await updateProductItem(id, updateData);
+
+    if (response.success) {
+      ElMessage.success("保存成功");
+      // 更新本地数据
+      row.prompt_note = promptNoteText.value.trim() || null;
+      closePromptNoteDialog();
+    } else {
+      ElMessage.error(response.message || "保存失败");
+    }
+  } catch (error: any) {
+    console.error("保存失败:", error);
+    ElMessage.error(error?.message || "保存失败，请稍后重试");
+  } finally {
+    loading.value = false;
+  }
+};
+
+// 格式化显示文本（显示前50个字符，后面用省略号）
+const formatPromptNote = (text: string | null | undefined): string => {
+  if (!text) {
+    return "点击编辑";
+  }
+  const trimmed = text.trim();
+  if (trimmed.length <= 50) {
+    return trimmed;
+  }
+  return trimmed.substring(0, 50) + "...";
 };
 </script>
 
@@ -706,22 +732,20 @@ const handleSizeChange = (size: number) => {
             </template>
           </el-table-column>
 
-          <!-- 操作列 -->
-          <el-table-column
-            label="操作"
-            width="120"
-            align="center"
-            fixed="right"
-          >
+          <!-- 提示词备注 -->
+          <el-table-column label="提示词备注" width="250" align="center">
             <template #default="{ row }">
-              <el-button
-                link
-                type="danger"
-                size="small"
-                @click="handleDelete(row)"
-              >
-                删除
-              </el-button>
+              <div class="prompt-note-cell" @click="openPromptNoteDialog(row)">
+                <span
+                  v-if="row.prompt_note"
+                  class="prompt-note-text"
+                  :title="row.prompt_note"
+                >
+                  {{ formatPromptNote(row.prompt_note) }}
+                </span>
+                <span v-else class="empty-text">点击编辑</span>
+                <el-icon class="edit-icon"><Edit /></el-icon>
+              </div>
             </template>
           </el-table-column>
         </el-table>
@@ -741,6 +765,40 @@ const handleSizeChange = (size: number) => {
         />
       </div>
     </el-card>
+
+    <!-- 提示词备注编辑弹窗 -->
+    <el-dialog
+      v-model="promptNoteDialogVisible"
+      title="编辑提示词备注"
+      width="600px"
+      :close-on-click-modal="false"
+      @close="closePromptNoteDialog"
+    >
+      <div class="prompt-note-dialog-content">
+        <el-input
+          v-model="promptNoteText"
+          type="textarea"
+          :rows="10"
+          :maxlength="promptNoteMaxLength"
+          placeholder="请输入提示词备注，最多2000字"
+          show-word-limit
+          resize="vertical"
+        />
+        <div class="dialog-tips">
+          <el-text type="info" size="small">
+            提示：提示词备注用于AI分析商品，需要分点描述，最多可输入2000个字符
+          </el-text>
+        </div>
+      </div>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="closePromptNoteDialog">取消</el-button>
+          <el-button type="primary" :loading="loading" @click="savePromptNote">
+            保存
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -880,6 +938,56 @@ const handleSizeChange = (size: number) => {
   opacity: 1;
 }
 
+.prompt-note-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  border-radius: 12px;
+  min-height: 36px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+  box-shadow: 0 6px 12px rgba(31, 18, 53, 0.1);
+
+  &:hover {
+    border-color: rgba(108, 99, 255, 0.4);
+    box-shadow: 0 12px 24px rgba(108, 99, 255, 0.2);
+
+    .edit-icon {
+      opacity: 1;
+    }
+  }
+}
+
+.prompt-note-text {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dopamine-contrast);
+  font-size: 13px;
+}
+
+.prompt-note-dialog-content {
+  .dialog-tips {
+    margin-top: 12px;
+    padding: 8px 12px;
+    background: rgba(108, 99, 255, 0.08);
+    border-radius: 8px;
+    border-left: 3px solid var(--dopamine-primary);
+  }
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
 .no-image {
   color: var(--dopamine-soft-ink);
   font-size: 12px;
@@ -954,4 +1062,3 @@ const handleSizeChange = (size: number) => {
   }
 }
 </style>
-

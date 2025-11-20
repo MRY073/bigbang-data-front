@@ -6,10 +6,12 @@ export interface ProductItem {
   product_id: string;
   product_name: string;
   product_image: string | null;
+  status?: number; // 0=上架，1=下架
   custom_category_1: string | null;
   custom_category_2: string | null;
   custom_category_3: string | null;
   custom_category_4: string | null;
+  prompt_note?: string | null; // 提示词备注
   [key: string]: any;
 }
 
@@ -58,9 +60,12 @@ export const getProductItem = (
 export const createProductItem = (
   data: Partial<ProductItem>
 ): Promise<ApiResponse<ProductItem>> => {
-  return http.post<ApiResponse<ProductItem>>("/api/product-items", {
-    data
-  });
+  return http.post<ApiResponse<ProductItem>, Partial<ProductItem>>(
+    "/api/product-items",
+    {
+      data
+    }
+  );
 };
 
 // 更新商品
@@ -97,3 +102,33 @@ export const getCustomCategoryOptions = (params?: {
   );
 };
 
+// 更新商品上下架状态（0=上架，1=下架）
+export const updateProductItemStatus = (
+  id: string | number,
+  status: 0 | 1
+): Promise<ApiResponse<ProductItem>> => {
+  return http.request<ApiResponse<ProductItem>>(
+    "put",
+    `/api/product-items/${id}/status`,
+    {
+      data: { status }
+    }
+  );
+};
+
+// 获取已下架商品列表
+export const getOfflineProductItems = (params: {
+  shopID: string; // 必填：店铺ID
+  shopName: string; // 必填：店铺名称
+  page?: number; // 可选：页码，默认 1
+  pageSize?: number; // 可选：每页数量，默认 20，最大 100
+  customCategory?: string; // 可选：自定义分类筛选
+}): Promise<PaginatedApiResponse<ProductItem[]>> => {
+  return http.request<PaginatedApiResponse<ProductItem[]>>(
+    "get",
+    "/api/product-items/offline",
+    {
+      params
+    }
+  );
+};

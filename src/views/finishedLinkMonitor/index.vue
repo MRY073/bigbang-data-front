@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
-import { ElMessage, ElLoading, ElDialog } from "element-plus";
-import { Loading, Warning } from "@element-plus/icons-vue";
+import { ElMessage, ElLoading, ElDialog, ElMessageBox } from "element-plus";
+import { Loading, Warning, ArrowDown, ArrowUp } from "@element-plus/icons-vue";
 import type { LoadingInstance } from "element-plus";
 import dayjs from "dayjs";
 import {
   getFinishedLinkMonitorList,
-  getFinishedLinkMonitorAISuggestion
+  getFinishedLinkMonitorAISuggestion,
+  batchGetFinishedLinkMonitorAISuggestion
 } from "@/api/monitor";
 import { getCustomCategoryOptions } from "@/api/productItems";
+import { shopOptions, DEFAULT_SHOP_ID, getShopOption } from "@/constants/shops";
 
 defineOptions({ name: "FinishedLinkMonitor" });
 
@@ -43,14 +45,14 @@ type ProductCard = {
 
 const products = ref<ProductCard[]>([]);
 const loading = ref(false);
-const selectedShop = ref<string>("1489850435"); // 默认选择第一个店铺
+const selectedShop = ref<string>(DEFAULT_SHOP_ID); // 默认选择第一个店铺
 const selectedDate = ref<string>(dayjs().format("YYYY-MM-DD")); // 默认选择今天
 
-// AI建议相关
-const aiSuggestionDialog = ref(false);
-const aiSuggestionContent = ref("");
-const aiSuggestionLoading = ref(false);
-const currentProductId = ref<string>("");
+// 折叠展开状态
+const expandedProducts = ref<Record<string, boolean>>({});
+
+// 批量AI建议相关
+const batchAISuggestionLoading = ref(false);
 
 // 分页相关
 const currentPage = ref(1);
@@ -100,40 +102,37 @@ const paginatedProducts = computed(() => {
 // 总条数（使用筛选后的数据）
 const total = computed(() => filteredProducts.value.length);
 
-// 店铺选项（与其他页面保持一致）
-const shopOptions = [
-  {
-    label: "Modern Nest|泰国",
-    value: "1489850435"
-  },
-  {
-    label: "shop07|泰国",
-    value: "1638595255"
-  }
-];
+// 店铺选项从共享常量导入
 
 function showLoader(text = "加载中..."): LoadingInstance {
   return ElLoading.service({ lock: true, text, background: "rgba(0,0,0,0.2)" });
 }
 
-/** 本地前端关注开关状态（仅内存保留，组件 keep-alive 时会保存；刷新页面会重置） */
-const followState = ref<Record<string, { on: boolean; time?: string }>>({});
-
-/** 切换关注开关（只在前端保存） */
-function toggleFollow(id: string, val: boolean) {
-  if (!followState.value[id]) followState.value[id] = { on: false };
-  followState.value[id].on = val;
-  followState.value[id].time = val ? new Date().toLocaleString() : undefined;
+/** 切换商品展开/折叠状态 */
+function toggleExpand(productId: string) {
+  expandedProducts.value[productId] = !expandedProducts.value[productId];
 }
 
-/** 获取关注状态（默认关） */
-function isFollowed(id: string) {
-  return !!followState.value[id]?.on;
+/** 获取商品展开状态 */
+function isExpanded(productId: string) {
+  return !!expandedProducts.value[productId];
 }
 
-/** 获取关注时间文本 */
-function followTimeText(id: string) {
-  return followState.value[id]?.time ?? "";
+/** 根据警告级别和展开状态获取背景色 */
+function getCardBackgroundColor(warningLevel: WarningLevel, isExpanded: boolean): string {
+  if (isExpanded) {
+    return ""; // 展开时背景色正常
+  }
+  switch (warningLevel) {
+    case "严重":
+      return "#ffebee"; // 红色背景
+    case "一般":
+      return "#fff3e0"; // 橙色背景
+    case "轻微":
+    case "正常":
+    default:
+      return ""; // 正常背景
+  }
 }
 
 /** 格式化数字为最多2位小数（去掉末尾的0） */
@@ -326,9 +325,7 @@ async function fetchData() {
   const loader = showLoader("拉取数据...");
   try {
     // 将店铺ID和店铺名称作为查询参数传递
-    const shopOption = shopOptions.find(
-      opt => opt.value === selectedShop.value
-    );
+    const shopOption = getShopOption(selectedShop.value);
     if (!shopOption) {
       throw new Error("店铺信息不存在");
     }
@@ -381,40 +378,70 @@ async function fetchData() {
   }
 }
 
-/** 获取AI建议 */
-async function getAISuggestion(productId: string, productName: string) {
-  currentProductId.value = productId;
-  aiSuggestionDialog.value = true;
-  aiSuggestionContent.value = "";
-  aiSuggestionLoading.value = true;
+/** 批量获取AI建议 */
+async function batchGetAISuggestion() {
+  if (!selectedShop.value) {
+    ElMessage.warning("请先选择店铺");
+    return;
+  }
 
+  if (!selectedDate.value) {
+    ElMessage.warning("请先选择日期");
+    return;
+  }
+
+  batchAISuggestionLoading.value = true;
   try {
-    const shopOption = shopOptions.find(
-      opt => opt.value === selectedShop.value
-    );
+    const shopOption = getShopOption(selectedShop.value);
     if (!shopOption) {
       throw new Error("店铺信息不存在");
     }
 
-    const result = await getFinishedLinkMonitorAISuggestion({
+    const result = await batchGetFinishedLinkMonitorAISuggestion({
       shopID: selectedShop.value,
       shopName: shopOption.label,
-      date: selectedDate.value,
-      productID: productId,
-      productName: productName
+      date: selectedDate.value
     });
 
     if (result.success && result.data) {
-      aiSuggestionContent.value = result.data.suggestion || "暂无建议";
+      const status = result.data.status;
+      if (status === "new") {
+        ElMessage.success("新增AI任务，请等待");
+      } else if (status === "running") {
+        ElMessage.warning("正在执行同条件任务，请等待");
+      } else if (status === "exists") {
+        ElMessageBox.confirm(
+          "已经获取AI建议，是否再次获取并覆盖之前建议？",
+          "提示",
+          {
+            confirmButtonText: "确定",
+            cancelButtonText: "取消",
+            type: "warning"
+          }
+        )
+          .then(async () => {
+            // 用户确认覆盖，再次调用接口（可能需要force参数）
+            const retryResult = await batchGetFinishedLinkMonitorAISuggestion({
+              shopID: selectedShop.value,
+              shopName: shopOption.label,
+              date: selectedDate.value
+            });
+            if (retryResult.success) {
+              ElMessage.success("已重新获取AI建议");
+            }
+          })
+          .catch(() => {
+            // 用户取消
+          });
+      }
     } else {
       throw new Error(result.error || result.message || "获取AI建议失败");
     }
   } catch (error: any) {
-    console.error("获取AI建议失败:", error);
-    ElMessage.error(error?.message || "获取AI建议失败，请稍后重试");
-    aiSuggestionContent.value = "获取AI建议失败，请稍后重试";
+    console.error("批量获取AI建议失败:", error);
+    ElMessage.error(error?.message || "批量获取AI建议失败，请稍后重试");
   } finally {
-    aiSuggestionLoading.value = false;
+    batchAISuggestionLoading.value = false;
   }
 }
 
@@ -527,6 +554,13 @@ onMounted(() => {
 <template>
   <div class="finished-monitor-page">
     <div class="controls">
+      <el-button
+        type="primary"
+        :loading="batchAISuggestionLoading"
+        style="margin-right: 12px"
+        @click="batchGetAISuggestion"
+        >为每条链接获取AI建议</el-button
+      >
       <el-select
         v-model="selectedShop"
         placeholder="选择店铺"
@@ -540,6 +574,14 @@ onMounted(() => {
           :value="item.value"
         />
       </el-select>
+      <el-date-picker
+        v-model="selectedDate"
+        type="date"
+        placeholder="选择日期"
+        value-format="YYYY-MM-DD"
+        :disabled-date="(date: Date) => date > new Date()"
+        style="width: 200px; margin-right: 12px"
+      />
       <el-select
         v-model="selectedCustomCategory"
         placeholder="请选择自定义分类"
@@ -555,14 +597,6 @@ onMounted(() => {
           :value="option.value"
         />
       </el-select>
-      <el-date-picker
-        v-model="selectedDate"
-        type="date"
-        placeholder="选择日期"
-        value-format="YYYY-MM-DD"
-        :disabled-date="(date: Date) => date > new Date()"
-        style="width: 200px; margin-right: 12px"
-      />
       <el-button
         type="primary"
         :loading="loading"
@@ -577,9 +611,18 @@ onMounted(() => {
         v-for="p in paginatedProducts"
         :key="p.id"
         class="prod-card"
-        :class="{ 'prod-followed': isFollowed(p.id) }"
+        :class="{
+          'warning-severe': p.warningLevel === '严重' && !isExpanded(p.id),
+          'warning-normal': p.warningLevel === '一般' && !isExpanded(p.id)
+        }"
       >
         <div class="card-row top">
+          <div class="expand-icon" @click="toggleExpand(p.id)">
+            <el-icon>
+              <ArrowDown v-if="!isExpanded(p.id)" />
+              <ArrowUp v-else />
+            </el-icon>
+          </div>
           <div class="left">
             <img v-if="p.image" :src="p.image" alt="主图" class="prod-img" />
             <div v-else class="prod-img placeholder">无图</div>
@@ -617,34 +660,9 @@ onMounted(() => {
               </div>
             </div>
           </div>
-
-          <!-- 右侧关注开关 -->
-          <div class="follow-area">
-            <el-button
-              type="primary"
-              size="small"
-              :loading="aiSuggestionLoading && currentProductId === p.id"
-              style="margin-right: 12px"
-              @click="getAISuggestion(p.id, p.name)"
-            >
-              获取AI建议
-            </el-button>
-            <el-switch
-              :model-value="isFollowed(p.id)"
-              active-text="已关注"
-              inactive-text="未关注"
-              @change="val => toggleFollow(p.id, !!val)"
-            />
-            <div v-if="isFollowed(p.id)" class="follow-time">
-              {{ followTimeText(p.id) }}
-            </div>
-            <!-- <div v-if="isFollowed(p.id)" class="follow-time">
-              {{ followTimeText(p.id) }}
-            </div> -->
-          </div>
         </div>
 
-        <div class="metrics">
+        <div v-if="isExpanded(p.id)" class="metrics">
           <div class="metric-block">
             <div class="metric-title">日均访客(30/15/7/3/1日)</div>
             <div class="metric-values">
@@ -921,35 +939,6 @@ onMounted(() => {
       />
     </div>
 
-    <!-- AI建议对话框 -->
-    <el-dialog
-      v-model="aiSuggestionDialog"
-      title="AI建议"
-      width="600px"
-      :close-on-click-modal="false"
-    >
-      <div v-if="aiSuggestionLoading" style="text-align: center; padding: 20px">
-        <el-icon class="is-loading" style="font-size: 24px">
-          <Loading />
-        </el-icon>
-        <p style="margin-top: 10px">AI正在分析中...</p>
-      </div>
-      <div
-        v-else
-        style="
-          white-space: pre-wrap;
-          line-height: 1.6;
-          color: #303133;
-          max-height: 400px;
-          overflow-y: auto;
-        "
-      >
-        {{ aiSuggestionContent || "暂无建议" }}
-      </div>
-      <template #footer>
-        <el-button @click="aiSuggestionDialog = false">关闭</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
@@ -1000,7 +989,8 @@ onMounted(() => {
   transition:
     transform 0.25s ease,
     box-shadow 0.25s ease,
-    border 0.25s ease;
+    border 0.25s ease,
+    background-color 0.25s ease;
 
   &:hover {
     transform: translateY(-4px);
@@ -1015,6 +1005,21 @@ onMounted(() => {
       0 18px 36px rgba(45, 226, 230, 0.24);
     border: 1px solid rgba(108, 99, 255, 0.4);
   }
+
+  // 根据警告级别设置背景色
+  &.warning-severe {
+    background-color: #ffebee !important;
+    :deep(.el-card__body) {
+      background-color: #ffebee !important;
+    }
+  }
+
+  &.warning-normal {
+    background-color: #fff3e0 !important;
+    :deep(.el-card__body) {
+      background-color: #fff3e0 !important;
+    }
+  }
 }
 
 .card-row.top {
@@ -1023,6 +1028,21 @@ onMounted(() => {
   align-items: center;
   margin-bottom: 18px;
   flex-wrap: wrap;
+}
+
+.expand-icon {
+  cursor: pointer;
+  font-size: 20px;
+  color: var(--dopamine-contrast);
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease;
+  
+  &:hover {
+    transform: scale(1.1);
+  }
 }
 
 .left .prod-img {
@@ -1094,23 +1114,6 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-.follow-area {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 10px;
-  min-width: 160px;
-  position: relative;
-}
-
-.follow-time {
-  font-size: 12px;
-  color: var(--dopamine-soft-ink);
-  background: rgba(255, 255, 255, 0.8);
-  padding: 4px 10px;
-  border-radius: 10px;
-  box-shadow: 0 10px 18px rgba(31, 18, 53, 0.15);
-}
 
 .metrics {
   display: grid;
@@ -1248,10 +1251,6 @@ onMounted(() => {
     gap: 12px;
   }
 
-  .follow-area {
-    width: 100%;
-    align-items: flex-start;
-  }
 }
 
 @media (max-width: 768px) {
@@ -1264,9 +1263,6 @@ onMounted(() => {
     align-items: flex-start;
   }
 
-  .follow-area {
-    align-items: stretch;
-  }
 
   .controls {
     flex-direction: column;

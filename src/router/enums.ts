@@ -34,7 +34,8 @@ const home = 0, // 平台规定只有 home 路由的 rank 才能为 0 ，所以�
   ganttastic = 30,
   components = 31,
   able = 32,
-  customCategory = 33;
+  customCategory = 33,
+  offlineProducts = 34;
 
 export {
   home,
@@ -71,5 +72,6 @@ export {
   finishedLinkMonitor,
   trialLinkMonitor,
   potentialLinkMonitor,
-  customCategory
+  customCategory,
+  offlineProducts
 };

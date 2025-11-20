@@ -5,6 +5,7 @@ import { Picture } from "@element-plus/icons-vue";
 import * as echarts from "echarts";
 import type { EChartsOption } from "echarts";
 import { getAdRatio, getAdTrend, getStageProducts } from "@/api/adAnalysis";
+import { shopOptions, DEFAULT_SHOP_ID, getShopOption } from "@/constants/shops";
 
 defineOptions({ name: "AdAnalysis" });
 
@@ -44,7 +45,7 @@ type StageKey = "product" | "testing" | "potential" | "abandoned" | "other";
 
 // 状态
 const selectedDate = ref<string>(new Date().toISOString().split("T")[0]);
-const selectedShop = ref<string>("1489850435"); // 默认选择第一个店铺
+const selectedShop = ref<string>(DEFAULT_SHOP_ID); // 默认选择第一个店铺
 const dailyData = ref<DailyData | null>(null);
 const trendData = ref<TrendData | null>(null);
 const loading = ref(false);
@@ -56,17 +57,7 @@ const productList = ref<ProductItem[]>([]);
 const productListLoading = ref(false);
 const currentStage = ref<StageKey | null>(null);
 
-// 店铺选项（与其他页面保持一致）
-const shopOptions = [
-  {
-    label: "Modern Nest|泰国",
-    value: "1489850435"
-  },
-  {
-    label: "shop07|泰国",
-    value: "1638595255"
-  }
-];
+// 店铺选项从共享常量导入
 
 // 图表实例
 const spendChart = ref<echarts.ECharts>();
@@ -355,9 +346,7 @@ async function fetchDailyData() {
   const loader = ElLoading.service({ text: "加载数据..." });
 
   try {
-    const shopOption = shopOptions.find(
-      opt => opt.value === selectedShop.value
-    );
+    const shopOption = getShopOption(selectedShop.value);
     if (!shopOption) {
       throw new Error("店铺信息不存在");
     }
@@ -421,9 +410,7 @@ async function fetchTrendData() {
   const loader = ElLoading.service({ text: "加载趋势数据..." });
 
   try {
-    const shopOption = shopOptions.find(
-      opt => opt.value === selectedShop.value
-    );
+    const shopOption = getShopOption(selectedShop.value);
     if (!shopOption) {
       throw new Error("店铺信息不存在");
     }
@@ -660,9 +647,7 @@ async function fetchStageProducts(stage: StageKey) {
   productList.value = [];
 
   try {
-    const shopOption = shopOptions.find(
-      opt => opt.value === selectedShop.value
-    );
+    const shopOption = getShopOption(selectedShop.value);
     if (!shopOption) {
       throw new Error("店铺信息不存在");
     }

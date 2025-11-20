@@ -6,6 +6,7 @@ import {
   getTestingMonitorProducts,
   type TestingMonitorProduct
 } from "@/api/products";
+import { shopOptions, DEFAULT_SHOP_ID, getShopOption } from "@/constants/shops";
 
 defineOptions({ name: "TrialLinkMonitor" });
 
@@ -17,19 +18,9 @@ type TestingStatus = "finished" | "watching" | "normal";
 
 const products = ref<Product[]>([]);
 const loading = ref(false);
-const selectedShop = ref<string>("1489850435"); // 默认选择第一个店铺
+const selectedShop = ref<string>(DEFAULT_SHOP_ID); // 默认选择第一个店铺
 
-// 店铺选项（与数据上传页面保持一致）
-const shopOptions = [
-  {
-    label: "Modern Nest|泰国",
-    value: "1489850435"
-  },
-  {
-    label: "shop07|泰国",
-    value: "1638595255"
-  }
-];
+// 店铺选项从共享常量导入
 
 function showLoader(text = "加载中..."): LoadingInstance {
   return ElLoading.service({ lock: true, text, background: "rgba(0,0,0,0.2)" });
@@ -276,9 +267,7 @@ async function fetchData() {
   const loader = showLoader("拉取数据中...");
   try {
     // 将店铺ID和店铺名称作为查询参数传递
-    const shopOption = shopOptions.find(
-      opt => opt.value === selectedShop.value
-    );
+    const shopOption = getShopOption(selectedShop.value);
     if (!shopOption) {
       throw new Error("店铺信息不存在");
     }

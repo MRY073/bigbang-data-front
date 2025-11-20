@@ -59,6 +59,29 @@ export const updateProductStage = (
   });
 };
 
+// 更新商品上下架状态（下架/上架）
+export const updateProductStatus = (
+  id: string | number,
+  status: 0 | 1
+): Promise<ApiResponse<any>> => {
+  return http.request<ApiResponse<any>>(
+    "put",
+    `/api/product-items/${id}/status`,
+    {
+      data: { status }
+    }
+  );
+};
+
+// 下架商品（兼容旧接口，使用新 API）
+export const offlineProduct = (data: {
+  product_id: string;
+  shopID?: string;
+  shopName?: string;
+}): Promise<ApiResponse<void>> => {
+  return updateProductStatus(data.product_id, 1);
+};
+
 // 测款监控商品数据类型
 export interface TestingMonitorProduct {
   product_id: string;
