@@ -132,3 +132,31 @@ export const getOfflineProductItems = (params: {
     }
   );
 };
+
+// 更新商品竞争对手信息
+export interface UpdateCompetitorInfoParams {
+  competitor_link?: string | null; // 竞争对手链接
+  competitor_daily_sales?: string | null; // 竞争对手日均销量
+}
+
+export interface CompetitorInfoResponse {
+  id: number;
+  product_id: string;
+  product_name: string;
+  product_image: string | null;
+  competitor_link: string | null;
+  competitor_daily_sales: string | null;
+}
+
+export const updateCompetitorInfo = (
+  id: string | number,
+  data: UpdateCompetitorInfoParams
+): Promise<ApiResponse<CompetitorInfoResponse>> => {
+  return http.request<ApiResponse<CompetitorInfoResponse>>(
+    "put",
+    `/api/product-items/${id}/competitor-info`,
+    {
+      data
+    }
+  );
+};

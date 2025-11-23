@@ -35,7 +35,8 @@ const home = 0, // 平台规定只有 home 路由的 rank 才能为 0 ，所以�
   components = 31,
   able = 32,
   customCategory = 33,
-  offlineProducts = 34;
+  offlineProducts = 34,
+  competitor = 35;
 
 export {
   home,
@@ -73,5 +74,6 @@ export {
   trialLinkMonitor,
   potentialLinkMonitor,
   customCategory,
-  offlineProducts
+  offlineProducts,
+  competitor
 };
