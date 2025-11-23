@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from "vue";
-import { ElMessage, ElLoading, ElDialog, ElIcon } from "element-plus";
-import { Picture } from "@element-plus/icons-vue";
+import { ElMessage, ElLoading } from "element-plus";
 import * as echarts from "echarts";
 import type { EChartsOption } from "echarts";
-import { getAdRatio, getAdTrend, getStageProducts } from "@/api/adAnalysis";
+import { getAdRatio, getAdTrend } from "@/api/adAnalysis";
 import { shopOptions, DEFAULT_SHOP_ID, getShopOption } from "@/constants/shops";
 import { getCustomCategoryOptions } from "@/api/productItems";
+import ProductListDialog from "./ProductListDialog.vue";
 
 defineOptions({ name: "AdAnalysis" });
 
@@ -49,16 +49,6 @@ type TrendData = {
   roiData: StageRoi[];
 };
 
-// 商品信息类型
-type ProductItem = {
-  productId: string; // 商品ID
-  title: string; // 商品标题
-  mainImage: string; // 主图URL
-  adSpend: number; // 广告花费
-  adSales: number; // 广告销售额
-  roi: number; // ROI
-};
-
 // 阶段类型映射
 type StageKey = "product" | "testing" | "potential" | "abandoned" | "other";
 
@@ -86,9 +76,6 @@ const categoryFields: Array<
 
 // 商品列表弹窗状态
 const dialogVisible = ref(false);
-const dialogTitle = ref("");
-const productList = ref<ProductItem[]>([]);
-const productListLoading = ref(false);
 const currentStage = ref<StageKey | null>(null);
 
 // 店铺选项从共享常量导入
@@ -278,11 +265,6 @@ function initPieChart(container: HTMLElement) {
             const percentage =
               total > 0 ? ((params.value / total) * 100).toFixed(1) : "0.0";
             return `${params.name}\n${percentage}%`;
-          },
-          textStyle: {
-            fontSize: 14,
-            fontWeight: 600,
-            color: "#1f1235"
           }
         },
         labelLine: {
@@ -767,11 +749,6 @@ function initSalesPieChart(container: HTMLElement) {
             const percentage =
               total > 0 ? ((params.value / total) * 100).toFixed(1) : "0.0";
             return `${params.name}\n${percentage}%`;
-          },
-          textStyle: {
-            fontSize: 14,
-            fontWeight: 600,
-            color: "#1f1235"
           }
         },
         labelLine: {
@@ -1007,9 +984,9 @@ async function handleSearch() {
 }
 
 /**
- * 获取指定阶段的商品列表
+ * 打开指定阶段的商品列表弹窗
  */
-async function fetchStageProducts(stage: StageKey) {
+function fetchStageProducts(stage: StageKey) {
   if (!selectedDate.value) {
     ElMessage.warning("请先选择日期");
     return;
@@ -1021,79 +998,7 @@ async function fetchStageProducts(stage: StageKey) {
   }
 
   currentStage.value = stage;
-  dialogTitle.value = `${STAGE_NAMES[stage]} - 商品细则`;
   dialogVisible.value = true;
-  productListLoading.value = true;
-  productList.value = [];
-
-  try {
-    const shopOption = getShopOption(selectedShop.value);
-    if (!shopOption) {
-      throw new Error("店铺信息不存在");
-    }
-
-    const result = await getStageProducts({
-      date: selectedDate.value,
-      shopID: selectedShop.value,
-      shopName: shopOption.label,
-      stage: STAGE_FIELD_MAP[stage]
-    });
-
-    if (!result.success) {
-      throw new Error(result.error || result.message || "查询失败");
-    }
-
-    // 转换数据格式
-    if (result.data && Array.isArray(result.data)) {
-      productList.value = result.data.map((item: any) => ({
-        productId: item.product_id || item.productId || "",
-        title: item.title || "",
-        mainImage: item.main_image || item.mainImage || "",
-        adSpend: item.ad_spend || item.adSpend || 0,
-        adSales: item.ad_sales || item.adSales || 0,
-        roi: item.roi || 0
-      }));
-    } else {
-      productList.value = [];
-    }
-
-    if (productList.value.length === 0) {
-      ElMessage.info("该阶段暂无商品数据");
-    }
-  } catch (error: any) {
-    console.error("获取商品列表失败:", error);
-    // 使用模拟数据
-    productList.value = [
-      {
-        productId: "123456789",
-        title: "示例商品标题 - 这是一个测试商品",
-        mainImage: "https://via.placeholder.com/100",
-        adSpend: 123.45,
-        adSales: 456.78,
-        roi: 3.7
-      },
-      {
-        productId: "987654321",
-        title: "另一个示例商品",
-        mainImage: "https://via.placeholder.com/100",
-        adSpend: 234.56,
-        adSales: 567.89,
-        roi: 2.42
-      }
-    ];
-    ElMessage.info("使用模拟数据展示（后端接口未就绪）");
-  } finally {
-    productListLoading.value = false;
-  }
-}
-
-/**
- * 关闭商品列表弹窗
- */
-function closeProductDialog() {
-  dialogVisible.value = false;
-  productList.value = [];
-  currentStage.value = null;
 }
 
 // 监听 dailyData 变化，自动更新饼图
@@ -1252,7 +1157,6 @@ onUnmounted(() => {
                     type="primary"
                     size="small"
                     class="stage-detail-btn"
-                    :loading="productListLoading && currentStage === key"
                     @click="fetchStageProducts(key as StageKey)"
                   >
                     查看相应商品细则
@@ -1284,9 +1188,7 @@ onUnmounted(() => {
                   <div class="stage-card" :class="key">
                     <div class="stage-label">{{ stage }}</div>
                     <div class="stage-value">
-                      ฿{{
-                        dailyData.sales[key as keyof StageSales].toFixed(2)
-                      }}
+                      ฿{{ dailyData.sales[key as keyof StageSales].toFixed(2) }}
                     </div>
                     <div class="stage-percentage">
                       {{
@@ -1352,71 +1254,13 @@ onUnmounted(() => {
     </el-card>
 
     <!-- 商品列表弹窗 -->
-    <el-dialog
-      v-model="dialogVisible"
-      :title="dialogTitle"
-      width="80%"
-      :close-on-click-modal="false"
-      @close="closeProductDialog"
-    >
-      <div v-loading="productListLoading" class="product-list-container">
-        <el-table
-          :data="productList"
-          stripe
-          style="width: 100%"
-          empty-text="暂无商品数据"
-        >
-          <el-table-column prop="productId" label="商品ID" width="150" />
-          <el-table-column label="主图" width="100">
-            <template #default="{ row }">
-              <el-image
-                :src="row.mainImage"
-                :preview-src-list="[row.mainImage]"
-                fit="cover"
-                style="width: 80px; height: 80px; border-radius: 4px"
-                :preview-teleported="true"
-              >
-                <template #error>
-                  <div class="image-slot">
-                    <el-icon><Picture /></el-icon>
-                  </div>
-                </template>
-              </el-image>
-            </template>
-          </el-table-column>
-          <el-table-column
-            prop="title"
-            label="标题"
-            min-width="200"
-            show-overflow-tooltip
-          />
-          <el-table-column label="广告花费" width="120" align="right">
-            <template #default="{ row }">
-              ฿{{ row.adSpend.toFixed(2) }}
-            </template>
-          </el-table-column>
-          <el-table-column label="广告销售额" width="120" align="right">
-            <template #default="{ row }">
-              ฿{{ row.adSales.toFixed(2) }}
-            </template>
-          </el-table-column>
-          <el-table-column label="ROI" width="100" align="right">
-            <template #default="{ row }">
-              <span
-                :class="{ 'roi-high': row.roi >= 2, 'roi-low': row.roi < 1 }"
-              >
-                {{ row.roi.toFixed(2) }}
-              </span>
-            </template>
-          </el-table-column>
-        </el-table>
-      </div>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="closeProductDialog">关闭</el-button>
-        </span>
-      </template>
-    </el-dialog>
+    <ProductListDialog
+      v-model:visible="dialogVisible"
+      :stage="currentStage"
+      :date="selectedDate"
+      :shop-i-d="selectedShop"
+      :custom-category="selectedCustomCategory"
+    />
   </div>
 </template>
 
@@ -1435,7 +1279,9 @@ onUnmounted(() => {
   @include dopamine.dopamine-surface(24px);
   border: none;
   margin-bottom: 24px;
-  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
 
   &:hover {
     transform: translateY(-4px);
@@ -1522,7 +1368,9 @@ onUnmounted(() => {
   border: 1px solid rgba(255, 255, 255, 0.45);
   backdrop-filter: blur(12px);
   box-shadow: 0 12px 24px rgba(31, 18, 53, 0.12);
-  transition: transform 0.22s ease, box-shadow 0.22s ease;
+  transition:
+    transform 0.22s ease,
+    box-shadow 0.22s ease;
 
   &:hover {
     transform: translateY(-4px) scale(1.02);
@@ -1579,33 +1427,6 @@ onUnmounted(() => {
   @include dopamine.dopamine-ghost-button();
 }
 
-.product-list-container {
-  min-height: 300px;
-  max-height: 600px;
-  overflow-y: auto;
-}
-
-.image-slot {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 100%;
-  height: 100%;
-  border-radius: 12px;
-  background: rgba(108, 99, 255, 0.08);
-  color: rgba(108, 99, 255, 0.7);
-}
-
-.roi-high {
-  color: var(--dopamine-neon-green);
-  font-weight: 700;
-}
-
-.roi-low {
-  color: #ff6f91;
-  font-weight: 700;
-}
-
 .roi-overview {
   min-width: 280px;
   @include dopamine.dopamine-surface(20px);
@@ -1627,7 +1448,9 @@ onUnmounted(() => {
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.4);
   backdrop-filter: blur(8px);
-  transition: transform 0.2s ease, background 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease;
 
   &:hover {
     transform: translateY(-2px);

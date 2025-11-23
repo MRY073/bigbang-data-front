@@ -107,14 +107,27 @@ export const getAdTrend = (params: {
   );
 };
 
+// 分页响应类型
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 // 获取阶段商品列表
 export const getStageProducts = (params: {
   date: string;
   shopID: string;
   shopName: string;
   stage: string;
-}): Promise<ApiResponse<ProductItem[]>> => {
-  return http.request<ApiResponse<ProductItem[]>>(
+  customCategory?: string;
+  page?: number;
+  pageSize?: number;
+  sortBy?: "ad_spend" | "ad_sales" | "roi";
+  sortOrder?: "asc" | "desc";
+}): Promise<ApiResponse<PaginatedResponse<ProductItem>>> => {
+  return http.request<ApiResponse<PaginatedResponse<ProductItem>>>(
     "get",
     "/api/ad-analysis/stage-products",
     {
