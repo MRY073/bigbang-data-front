@@ -6,6 +6,7 @@ import * as echarts from "echarts";
 import type { EChartsOption } from "echarts";
 import { getAdRatio, getAdTrend, getStageProducts } from "@/api/adAnalysis";
 import { shopOptions, DEFAULT_SHOP_ID, getShopOption } from "@/constants/shops";
+import { getCustomCategoryOptions } from "@/api/productItems";
 
 defineOptions({ name: "AdAnalysis" });
 
@@ -18,16 +19,34 @@ type StageSpend = {
   other: number; // 其他阶段
 };
 
+type StageSales = {
+  product: number; // 成品阶段
+  testing: number; // 测款阶段
+  potential: number; // 潜力阶段
+  abandoned: number; // 放弃阶段
+  other: number; // 其他阶段
+};
+
+type StageRoi = {
+  product: number; // 成品阶段 ROI
+  testing: number; // 测款阶段 ROI
+  potential: number; // 潜力阶段 ROI
+  abandoned: number; // 放弃阶段 ROI
+  other: number; // 其他阶段 ROI
+};
+
 type DailyData = {
   date: string;
   stages: StageSpend;
-  productRoi: number; // 成品阶段 ROI
+  sales: StageSales;
+  roi: StageRoi;
 };
 
 type TrendData = {
   dates: string[];
   spendData: StageSpend[];
-  roiData: number[]; // 成品阶段 ROI 序列
+  salesData: StageSales[];
+  roiData: StageRoi[];
 };
 
 // 商品信息类型
@@ -50,6 +69,21 @@ const dailyData = ref<DailyData | null>(null);
 const trendData = ref<TrendData | null>(null);
 const loading = ref(false);
 
+// 自定义分类相关
+const customCategoryOptions = ref<Array<{ label: string; value: string }>>([]);
+const selectedCustomCategory = ref<string>("");
+const categoryFields: Array<
+  | "custom_category_1"
+  | "custom_category_2"
+  | "custom_category_3"
+  | "custom_category_4"
+> = [
+  "custom_category_1",
+  "custom_category_2",
+  "custom_category_3",
+  "custom_category_4"
+];
+
 // 商品列表弹窗状态
 const dialogVisible = ref(false);
 const dialogTitle = ref("");
@@ -63,11 +97,13 @@ const currentStage = ref<StageKey | null>(null);
 const spendChart = ref<echarts.ECharts>();
 const roiChart = ref<echarts.ECharts>();
 const pieChart = ref<echarts.ECharts>();
+const salesPieChart = ref<echarts.ECharts>();
 
 // 图表容器引用
 const spendChartRef = ref<HTMLElement>();
 const roiChartRef = ref<HTMLElement>();
 const pieChartRef = ref<HTMLElement>();
+const salesPieChartRef = ref<HTMLElement>();
 
 // 图表配色方案
 const COLORS = {
@@ -265,7 +301,7 @@ function initPieChart(container: HTMLElement) {
 }
 
 /**
- * 初始化折线图（成品阶段 ROI 趋势）
+ * 初始化折线图（各阶段 ROI 趋势）
  */
 function initRoiChart(container: HTMLElement) {
   roiChart.value = echarts.init(container);
@@ -275,20 +311,29 @@ function initRoiChart(container: HTMLElement) {
       show: true,
       formatter: (params: any) => {
         if (!params || params.length === 0) return "";
-        const param = params[0];
-        const value = param.value || 0;
-        return `<div style="font-weight: 600; margin-bottom: 4px;">${param.axisValue}</div><div style="margin: 2px 0;">${param.marker}<span style="margin-right: 8px;">${param.seriesName}:</span><span style="font-weight: 600;">${value.toFixed(2)}</span></div>`;
+        let result = `<div style="font-weight: 600; margin-bottom: 4px;">${params[0].axisValue}</div>`;
+        params.forEach((item: any) => {
+          const value = item.value || 0;
+          result += `<div style="margin: 2px 0;">${item.marker}<span style="margin-right: 8px;">${item.seriesName}:</span><span style="font-weight: 600;">${value.toFixed(2)}</span></div>`;
+        });
+        return result;
       }
     },
     legend: {
-      data: ["成品阶段 ROI"],
+      data: [
+        "成品阶段 ROI",
+        "测款阶段 ROI",
+        "潜力阶段 ROI",
+        "放弃阶段 ROI",
+        "其他阶段 ROI"
+      ],
       top: 10
     },
     grid: {
       left: "3%",
       right: "4%",
       bottom: "3%",
-      top: "15%",
+      top: "20%",
       containLabel: true
     },
     xAxis: {
@@ -312,16 +357,35 @@ function initRoiChart(container: HTMLElement) {
         type: "line",
         smooth: true,
         color: COLORS.product,
-        data: [],
-        markPoint: {
-          data: [
-            { type: "max", name: "最大值" },
-            { type: "min", name: "最小值" }
-          ]
-        },
-        markLine: {
-          data: [{ type: "average", name: "平均值" }]
-        }
+        data: []
+      },
+      {
+        name: "测款阶段 ROI",
+        type: "line",
+        smooth: true,
+        color: COLORS.testing,
+        data: []
+      },
+      {
+        name: "潜力阶段 ROI",
+        type: "line",
+        smooth: true,
+        color: COLORS.potential,
+        data: []
+      },
+      {
+        name: "放弃阶段 ROI",
+        type: "line",
+        smooth: true,
+        color: COLORS.abandoned,
+        data: []
+      },
+      {
+        name: "其他阶段 ROI",
+        type: "line",
+        smooth: true,
+        color: COLORS.other,
+        data: []
       }
     ]
   };
@@ -351,11 +415,18 @@ async function fetchDailyData() {
       throw new Error("店铺信息不存在");
     }
 
-    const result = await getAdRatio({
+    const params: any = {
       date: selectedDate.value,
       shopID: selectedShop.value,
       shopName: shopOption.label
-    });
+    };
+
+    // 如果选择了自定义分类，添加到请求参数中
+    if (selectedCustomCategory.value) {
+      params.customCategory = selectedCustomCategory.value;
+    }
+
+    const result = await getAdRatio(params);
 
     if (!result.success || !result.data) {
       throw new Error(result.error || result.message || "查询失败");
@@ -372,7 +443,20 @@ async function fetchDailyData() {
         abandoned: data.stages?.abandoned_stage?.spend || 0,
         other: data.stages?.no_stage?.spend || 0
       },
-      productRoi: data.stages?.product_stage?.roi || 0
+      sales: {
+        product: data.stages?.product_stage?.sales || 0,
+        testing: data.stages?.testing_stage?.sales || 0,
+        potential: data.stages?.potential_stage?.sales || 0,
+        abandoned: data.stages?.abandoned_stage?.sales || 0,
+        other: data.stages?.no_stage?.sales || 0
+      },
+      roi: {
+        product: data.stages?.product_stage?.roi || 0,
+        testing: data.stages?.testing_stage?.roi || 0,
+        potential: data.stages?.potential_stage?.roi || 0,
+        abandoned: data.stages?.abandoned_stage?.roi || 0,
+        other: data.stages?.no_stage?.roi || 0
+      }
     };
 
     ElMessage.success(result.message || "查询成功");
@@ -388,7 +472,20 @@ async function fetchDailyData() {
         abandoned: 450.2,
         other: 120.3
       },
-      productRoi: 2.64
+      sales: {
+        product: 15000.0,
+        testing: 6000.0,
+        potential: 3500.0,
+        abandoned: 800.0,
+        other: 200.0
+      },
+      roi: {
+        product: 2.64,
+        testing: 2.56,
+        potential: 1.94,
+        abandoned: 1.78,
+        other: 1.67
+      }
     };
     ElMessage.info("使用模拟数据展示（后端接口未就绪）");
   } finally {
@@ -415,10 +512,17 @@ async function fetchTrendData() {
       throw new Error("店铺信息不存在");
     }
 
-    const result = await getAdTrend({
+    const params: any = {
       shopID: selectedShop.value,
       shopName: shopOption.label
-    });
+    };
+
+    // 如果选择了自定义分类，添加到请求参数中
+    if (selectedCustomCategory.value) {
+      params.customCategory = selectedCustomCategory.value;
+    }
+
+    const result = await getAdTrend(params);
 
     if (!result.success || !result.data) {
       throw new Error(result.error || result.message || "查询失败");
@@ -434,9 +538,22 @@ async function fetchTrendData() {
       abandoned: item.abandoned_stage_spend || 0,
       other: item.no_stage_spend || 0
     }));
-    const roiData = data.map((item: any) => item.product_stage_roi || 0);
+    const salesData: StageSales[] = data.map((item: any) => ({
+      product: item.product_stage_sales || 0,
+      testing: item.testing_stage_sales || 0,
+      potential: item.potential_stage_sales || 0,
+      abandoned: item.abandoned_stage_sales || 0,
+      other: item.no_stage_sales || 0
+    }));
+    const roiData: StageRoi[] = data.map((item: any) => ({
+      product: item.product_stage_roi || 0,
+      testing: item.testing_stage_roi || 0,
+      potential: item.potential_stage_roi || 0,
+      abandoned: item.abandoned_stage_roi || 0,
+      other: item.no_stage_roi || 0
+    }));
 
-    trendData.value = { dates, spendData, roiData };
+    trendData.value = { dates, spendData, salesData, roiData };
 
     // 更新堆叠柱状图
     spendChart.value?.setOption({
@@ -453,7 +570,13 @@ async function fetchTrendData() {
     // 更新折线图
     roiChart.value?.setOption({
       xAxis: { data: dates },
-      series: [{ data: roiData }]
+      series: [
+        { name: "成品阶段 ROI", data: roiData.map(d => d.product) },
+        { name: "测款阶段 ROI", data: roiData.map(d => d.testing) },
+        { name: "潜力阶段 ROI", data: roiData.map(d => d.potential) },
+        { name: "放弃阶段 ROI", data: roiData.map(d => d.abandoned) },
+        { name: "其他阶段 ROI", data: roiData.map(d => d.other) }
+      ]
     });
 
     ElMessage.success(result.message || "查询成功");
@@ -462,7 +585,8 @@ async function fetchTrendData() {
     // 使用模拟数据
     const mockDates: string[] = [];
     const mockSpendData: StageSpend[] = [];
-    const mockRoiData: number[] = [];
+    const mockSalesData: StageSales[] = [];
+    const mockRoiData: StageRoi[] = [];
 
     for (let i = 29; i >= 0; i--) {
       const date = new Date();
@@ -477,12 +601,27 @@ async function fetchTrendData() {
         other: Math.random() * 300 + 100
       });
 
-      mockRoiData.push(Math.random() * 2 + 1.5);
+      mockSalesData.push({
+        product: Math.random() * 12000 + 8000,
+        testing: Math.random() * 5000 + 3000,
+        potential: Math.random() * 3000 + 1500,
+        abandoned: Math.random() * 1000 + 400,
+        other: Math.random() * 500 + 200
+      });
+
+      mockRoiData.push({
+        product: Math.random() * 2 + 1.5,
+        testing: Math.random() * 2 + 1.3,
+        potential: Math.random() * 2 + 1.0,
+        abandoned: Math.random() * 1.5 + 0.8,
+        other: Math.random() * 1.5 + 0.6
+      });
     }
 
     trendData.value = {
       dates: mockDates,
       spendData: mockSpendData,
+      salesData: mockSalesData,
       roiData: mockRoiData
     };
 
@@ -501,7 +640,13 @@ async function fetchTrendData() {
     // 更新折线图
     roiChart.value?.setOption({
       xAxis: { data: mockDates },
-      series: [{ data: mockRoiData }]
+      series: [
+        { name: "成品阶段 ROI", data: mockRoiData.map(d => d.product) },
+        { name: "测款阶段 ROI", data: mockRoiData.map(d => d.testing) },
+        { name: "潜力阶段 ROI", data: mockRoiData.map(d => d.potential) },
+        { name: "放弃阶段 ROI", data: mockRoiData.map(d => d.abandoned) },
+        { name: "其他阶段 ROI", data: mockRoiData.map(d => d.other) }
+      ]
     });
 
     ElMessage.info("使用模拟数据展示（后端接口未就绪）");
@@ -509,6 +654,217 @@ async function fetchTrendData() {
     loader.close();
     loading.value = false;
   }
+}
+
+/**
+ * 规范化分类数据
+ */
+function normalizeCategoryPayload(payload: any[]): string[] {
+  if (!Array.isArray(payload)) return [];
+  const result: string[] = [];
+  payload.forEach(item => {
+    if (typeof item === "string" && item.trim()) {
+      result.push(item.trim());
+    } else if (item && typeof item === "object") {
+      categoryFields.forEach(field => {
+        const value = item[field];
+        if (value && typeof value === "string" && value.trim()) {
+          result.push(value.trim());
+        }
+      });
+    }
+  });
+  return [...new Set(result)];
+}
+
+/**
+ * 追加自定义分类选项
+ */
+function appendCustomCategoryOptions(values: string[]) {
+  const existing = new Set(customCategoryOptions.value.map(opt => opt.value));
+  values.forEach(value => {
+    const trimmed = value.trim();
+    if (trimmed && !existing.has(trimmed)) {
+      customCategoryOptions.value.push({ label: trimmed, value: trimmed });
+      existing.add(trimmed);
+    }
+  });
+  customCategoryOptions.value.sort((a, b) =>
+    a.label.localeCompare(b.label, "zh-CN")
+  );
+}
+
+/**
+ * 获取自定义分类选项
+ */
+async function fetchCustomCategoryOptions() {
+  if (!selectedShop.value) return;
+  try {
+    const result = await getCustomCategoryOptions({
+      shopID: selectedShop.value
+    });
+    if (result.success && result.data) {
+      appendCustomCategoryOptions(normalizeCategoryPayload(result.data));
+    }
+  } catch (error) {
+    console.error("获取自定义分类选项失败:", error);
+  }
+}
+
+/**
+ * 初始化销售额饼状图（各阶段销售额占比）
+ */
+function initSalesPieChart(container: HTMLElement) {
+  if (
+    !container ||
+    container.offsetWidth === 0 ||
+    container.offsetHeight === 0
+  ) {
+    console.warn("销售额饼图容器尺寸为0，无法初始化");
+    return;
+  }
+
+  // 如果已经初始化，先销毁
+  if (salesPieChart.value) {
+    salesPieChart.value.dispose();
+  }
+
+  salesPieChart.value = echarts.init(container);
+  const option: EChartsOption = {
+    tooltip: {
+      trigger: "item",
+      formatter: (params: any) => {
+        const total = params.data?.total || 0;
+        const percentage =
+          total > 0 ? ((params.value / total) * 100).toFixed(1) : "0.0";
+        return `${params.name}<br/>${params.marker}${params.seriesName}: ฿${params.value.toFixed(2)}<br/>占比: ${percentage}%`;
+      }
+    },
+    legend: {
+      orient: "vertical",
+      left: "left",
+      top: "middle",
+      data: ["成品阶段", "测款阶段", "潜力阶段", "放弃阶段", "其他阶段"]
+    },
+    series: [
+      {
+        name: "各阶段销售额",
+        type: "pie",
+        radius: ["40%", "70%"],
+        center: ["60%", "50%"],
+        avoidLabelOverlap: false,
+        itemStyle: {
+          borderColor: "#fff",
+          borderWidth: 1
+        },
+        label: {
+          show: true,
+          fontSize: 14,
+          fontWeight: 600,
+          color: "#1f1235",
+          formatter: (params: any) => {
+            const total = params.data?.total || 0;
+            const percentage =
+              total > 0 ? ((params.value / total) * 100).toFixed(1) : "0.0";
+            return `${params.name}\n${percentage}%`;
+          },
+          textStyle: {
+            fontSize: 14,
+            fontWeight: 600,
+            color: "#1f1235"
+          }
+        },
+        labelLine: {
+          show: true,
+          length: 15,
+          length2: 10,
+          lineStyle: {
+            width: 2
+          }
+        },
+        data: []
+      }
+    ]
+  };
+  salesPieChart.value.setOption(option);
+}
+
+/**
+ * 更新销售额饼状图数据
+ */
+function updateSalesPieChart() {
+  if (!dailyData.value) return;
+
+  // 等待 DOM 渲染完成
+  nextTick(() => {
+    if (!salesPieChartRef.value) {
+      console.warn("销售额饼图容器引用不存在");
+      return;
+    }
+
+    // 检查容器尺寸
+    const container = salesPieChartRef.value;
+    if (container.offsetWidth === 0 || container.offsetHeight === 0) {
+      console.warn("销售额饼图容器尺寸为0，等待渲染");
+      setTimeout(() => updateSalesPieChart(), 100);
+      return;
+    }
+
+    // 如果图表还没初始化，先初始化
+    if (!salesPieChart.value) {
+      initSalesPieChart(container);
+    }
+
+    if (!salesPieChart.value) {
+      console.warn("销售额饼图初始化失败");
+      return;
+    }
+
+    const sales = dailyData.value!.sales;
+    const total = totalSales.value;
+
+    const pieData = [
+      {
+        value: sales.product,
+        name: "成品阶段",
+        itemStyle: { color: COLORS.product },
+        total
+      },
+      {
+        value: sales.testing,
+        name: "测款阶段",
+        itemStyle: { color: COLORS.testing },
+        total
+      },
+      {
+        value: sales.potential,
+        name: "潜力阶段",
+        itemStyle: { color: COLORS.potential },
+        total
+      },
+      {
+        value: sales.abandoned,
+        name: "放弃阶段",
+        itemStyle: { color: COLORS.abandoned },
+        total
+      },
+      {
+        value: sales.other,
+        name: "其他阶段",
+        itemStyle: { color: COLORS.other },
+        total
+      }
+    ];
+
+    salesPieChart.value.setOption({
+      series: [{ data: pieData }]
+    });
+
+    // 确保图表大小正确
+    setTimeout(() => {
+      salesPieChart.value?.resize();
+    }, 100);
+  });
 }
 
 /**
@@ -590,11 +946,19 @@ function updatePieChart() {
 }
 
 /**
- * 计算各阶段占比
+ * 计算各阶段占比（消耗）
  */
 function getStagePercentage(stage: keyof StageSpend, total: number): number {
   if (!dailyData.value || total === 0) return 0;
   return (dailyData.value.stages[stage] / total) * 100;
+}
+
+/**
+ * 计算各阶段占比（销售额）
+ */
+function getSalesPercentage(stage: keyof StageSales, total: number): number {
+  if (!dailyData.value || total === 0) return 0;
+  return (dailyData.value.sales[stage] / total) * 100;
 }
 
 /**
@@ -612,11 +976,27 @@ const totalSpend = computed(() => {
   );
 });
 
+/**
+ * 计算总销售额
+ */
+const totalSales = computed(() => {
+  if (!dailyData.value) return 0;
+  const sales = dailyData.value.sales;
+  return (
+    sales.product +
+    sales.testing +
+    sales.potential +
+    sales.abandoned +
+    sales.other
+  );
+});
+
 // 监听图表容器大小变化
 function handleResize() {
   spendChart.value?.resize();
   roiChart.value?.resize();
   pieChart.value?.resize();
+  salesPieChart.value?.resize();
 }
 
 /**
@@ -726,11 +1106,23 @@ watch(
         // 再次等待，确保容器已完全渲染
         setTimeout(() => {
           updatePieChart();
+          updateSalesPieChart();
         }, 50);
       });
     }
   },
   { deep: true }
+);
+
+// 监听店铺变化，更新自定义分类选项
+watch(
+  () => selectedShop.value,
+  () => {
+    if (selectedShop.value) {
+      selectedCustomCategory.value = "";
+      fetchCustomCategoryOptions();
+    }
+  }
 );
 
 onMounted(() => {
@@ -748,7 +1140,15 @@ onMounted(() => {
       initPieChart(pieChartRef.value);
       updatePieChart();
     }
+    if (salesPieChartRef.value && dailyData.value) {
+      initSalesPieChart(salesPieChartRef.value);
+      updateSalesPieChart();
+    }
   });
+  // 初始化时获取自定义分类选项
+  if (selectedShop.value) {
+    fetchCustomCategoryOptions();
+  }
 });
 
 onUnmounted(() => {
@@ -756,6 +1156,7 @@ onUnmounted(() => {
   spendChart.value?.dispose();
   roiChart.value?.dispose();
   pieChart.value?.dispose();
+  salesPieChart.value?.dispose();
 });
 </script>
 
@@ -788,6 +1189,22 @@ onUnmounted(() => {
             size="large"
             style="margin-right: 12px"
           />
+          <el-select
+            v-model="selectedCustomCategory"
+            placeholder="自定义分类"
+            filterable
+            clearable
+            style="width: 200px; margin-right: 12px"
+            :disabled="loading"
+            size="large"
+          >
+            <el-option
+              v-for="option in customCategoryOptions"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
+            />
+          </el-select>
           <el-button
             type="primary"
             :loading="loading"
@@ -846,14 +1263,68 @@ onUnmounted(() => {
                 <div ref="pieChartRef" class="pie-chart" />
               </div>
             </div>
+
+            <!-- 各阶段销售额占比 -->
+            <div class="section-title" style="margin-top: 32px">
+              各阶段销售额占比
+            </div>
+            <div class="stages-content">
+              <div class="stages-grid">
+                <div
+                  v-for="(stage, key) in {
+                    product: '成品阶段',
+                    testing: '测款阶段',
+                    potential: '潜力阶段',
+                    abandoned: '放弃阶段',
+                    other: '其他阶段'
+                  }"
+                  :key="key"
+                  class="stage-card-wrapper"
+                >
+                  <div class="stage-card" :class="key">
+                    <div class="stage-label">{{ stage }}</div>
+                    <div class="stage-value">
+                      ฿{{
+                        dailyData.sales[key as keyof StageSales].toFixed(2)
+                      }}
+                    </div>
+                    <div class="stage-percentage">
+                      {{
+                        getSalesPercentage(
+                          key as keyof StageSales,
+                          totalSales
+                        ).toFixed(1)
+                      }}%
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="pie-chart-container">
+                <div ref="salesPieChartRef" class="pie-chart" />
+              </div>
+            </div>
           </div>
 
-          <!-- 成品阶段 ROI 总览 -->
+          <!-- 各阶段 ROI 总览 -->
           <div class="roi-overview">
-            <div class="section-title">成品阶段 ROI</div>
-            <div class="roi-card">
-              <div class="roi-value">{{ dailyData.productRoi.toFixed(2) }}</div>
-              <div class="roi-label">投资回报率</div>
+            <div class="section-title">各阶段 ROI</div>
+            <div class="roi-grid">
+              <div
+                v-for="(stage, key) in {
+                  product: '成品阶段',
+                  testing: '测款阶段',
+                  potential: '潜力阶段',
+                  abandoned: '放弃阶段',
+                  other: '其他阶段'
+                }"
+                :key="key"
+                class="roi-item"
+              >
+                <div class="roi-stage-label">{{ stage }}</div>
+                <div class="roi-value-small">
+                  {{ dailyData.roi[key as keyof StageRoi].toFixed(2) }}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -870,11 +1341,11 @@ onUnmounted(() => {
       <div ref="spendChartRef" class="chart-container" />
     </el-card>
 
-    <!-- 底部：折线图（成品阶段 ROI 趋势） -->
+    <!-- 底部：折线图（各阶段 ROI 趋势） -->
     <el-card class="chart-card">
       <template #header>
         <div class="card-header">
-          <span class="card-title">成品阶段 ROI 趋势</span>
+          <span class="card-title">各阶段 ROI 趋势</span>
         </div>
       </template>
       <div ref="roiChartRef" class="chart-container" />
@@ -1136,17 +1607,47 @@ onUnmounted(() => {
 }
 
 .roi-overview {
-  min-width: 220px;
+  min-width: 280px;
   @include dopamine.dopamine-surface(20px);
   padding: 24px;
-  text-align: center;
 }
 
-.roi-card {
+.roi-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.roi-item {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(8px);
+  transition: transform 0.2s ease, background 0.2s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    background: rgba(255, 255, 255, 0.6);
+  }
+}
+
+.roi-stage-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dopamine-soft-ink);
+  letter-spacing: 0.3px;
+}
+
+.roi-value-small {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--dopamine-neon-green);
+  line-height: 1;
+  letter-spacing: 0.5px;
 }
 
 .roi-value {

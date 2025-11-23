@@ -12,22 +12,27 @@ export interface ApiResponse<T = any> {
 export interface StageSpendData {
   product_stage?: {
     spend: number;
+    sales?: number;
     roi: number;
   };
   testing_stage?: {
     spend: number;
+    sales?: number;
     roi?: number;
   };
   potential_stage?: {
     spend: number;
+    sales?: number;
     roi?: number;
   };
   abandoned_stage?: {
     spend: number;
+    sales?: number;
     roi?: number;
   };
   no_stage?: {
     spend: number;
+    sales?: number;
     roi?: number;
   };
 }
@@ -45,7 +50,16 @@ export interface TrendDataItem {
   potential_stage_spend?: number;
   abandoned_stage_spend?: number;
   no_stage_spend?: number;
+  product_stage_sales?: number;
+  testing_stage_sales?: number;
+  potential_stage_sales?: number;
+  abandoned_stage_sales?: number;
+  no_stage_sales?: number;
   product_stage_roi?: number;
+  testing_stage_roi?: number;
+  potential_stage_roi?: number;
+  abandoned_stage_roi?: number;
+  no_stage_roi?: number;
 }
 
 // 商品信息类型
@@ -67,6 +81,7 @@ export const getAdRatio = (params: {
   date: string;
   shopID: string;
   shopName: string;
+  customCategory?: string;
 }): Promise<ApiResponse<DailyDataResponse>> => {
   return http.request<ApiResponse<DailyDataResponse>>(
     "get",
@@ -81,6 +96,7 @@ export const getAdRatio = (params: {
 export const getAdTrend = (params: {
   shopID: string;
   shopName: string;
+  customCategory?: string;
 }): Promise<ApiResponse<TrendDataItem[]>> => {
   return http.request<ApiResponse<TrendDataItem[]>>(
     "get",
