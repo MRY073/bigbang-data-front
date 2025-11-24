@@ -76,9 +76,10 @@ export interface ProductItem {
   roi: number;
 }
 
-// 获取单日广告消耗占比
+// 获取时间段广告消耗占比
 export const getAdRatio = (params: {
-  date: string;
+  startDate: string;
+  endDate: string;
   shopID: string;
   shopName: string;
   customCategory?: string;
@@ -117,7 +118,8 @@ export interface PaginatedResponse<T> {
 
 // 获取阶段商品列表
 export const getStageProducts = (params: {
-  date: string;
+  startDate: string;
+  endDate: string;
   shopID: string;
   shopName: string;
   stage: string;

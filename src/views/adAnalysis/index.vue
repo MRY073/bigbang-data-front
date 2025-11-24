@@ -35,8 +35,9 @@ type StageRoi = {
   other: number; // 其他阶段 ROI
 };
 
-type DailyData = {
-  date: string;
+type RangeData = {
+  startDate: string;
+  endDate: string;
   stages: StageSpend;
   sales: StageSales;
   roi: StageRoi;
@@ -53,9 +54,10 @@ type TrendData = {
 type StageKey = "product" | "testing" | "potential" | "abandoned" | "other";
 
 // 状态
-const selectedDate = ref<string>(new Date().toISOString().split("T")[0]);
+const today = new Date().toISOString().split("T")[0];
+const dateRange = ref<[string, string]>([today, today]);
 const selectedShop = ref<string>(DEFAULT_SHOP_ID); // 默认选择第一个店铺
-const dailyData = ref<DailyData | null>(null);
+const rangeData = ref<RangeData | null>(null);
 const trendData = ref<TrendData | null>(null);
 const loading = ref(false);
 
@@ -375,11 +377,16 @@ function initRoiChart(container: HTMLElement) {
 }
 
 /**
- * 获取指定日期的数据
+ * 获取指定时间段的数据
  */
-async function fetchDailyData() {
-  if (!selectedDate.value) {
-    ElMessage.warning("请选择日期");
+async function fetchRangeData() {
+  if (
+    !dateRange.value ||
+    dateRange.value.length !== 2 ||
+    !dateRange.value[0] ||
+    !dateRange.value[1]
+  ) {
+    ElMessage.warning("请选择时间段");
     return;
   }
 
@@ -398,7 +405,8 @@ async function fetchDailyData() {
     }
 
     const params: any = {
-      date: selectedDate.value,
+      startDate: dateRange.value[0],
+      endDate: dateRange.value[1],
       shopID: selectedShop.value,
       shopName: shopOption.label
     };
@@ -416,8 +424,9 @@ async function fetchDailyData() {
 
     // 转换数据格式
     const data = result.data;
-    dailyData.value = {
-      date: selectedDate.value,
+    rangeData.value = {
+      startDate: dateRange.value[0],
+      endDate: dateRange.value[1],
       stages: {
         product: data.stages?.product_stage?.spend || 0,
         testing: data.stages?.testing_stage?.spend || 0,
@@ -443,10 +452,11 @@ async function fetchDailyData() {
 
     ElMessage.success(result.message || "查询成功");
   } catch (error: any) {
-    console.error("拉取单日数据失败:", error);
+    console.error("拉取时间段数据失败:", error);
     // 使用模拟数据
-    dailyData.value = {
-      date: selectedDate.value,
+    rangeData.value = {
+      startDate: dateRange.value[0],
+      endDate: dateRange.value[1],
       stages: {
         product: 5678.9,
         testing: 2345.67,
@@ -770,7 +780,7 @@ function initSalesPieChart(container: HTMLElement) {
  * 更新销售额饼状图数据
  */
 function updateSalesPieChart() {
-  if (!dailyData.value) return;
+  if (!rangeData.value) return;
 
   // 等待 DOM 渲染完成
   nextTick(() => {
@@ -797,7 +807,7 @@ function updateSalesPieChart() {
       return;
     }
 
-    const sales = dailyData.value!.sales;
+    const sales = rangeData.value!.sales;
     const total = totalSales.value;
 
     const pieData = [
@@ -848,7 +858,7 @@ function updateSalesPieChart() {
  * 更新饼状图数据
  */
 function updatePieChart() {
-  if (!dailyData.value) return;
+  if (!rangeData.value) return;
 
   // 等待 DOM 渲染完成
   nextTick(() => {
@@ -875,7 +885,7 @@ function updatePieChart() {
       return;
     }
 
-    const stages = dailyData.value!.stages;
+    const stages = rangeData.value!.stages;
     const total = totalSpend.value;
 
     const pieData = [
@@ -926,24 +936,24 @@ function updatePieChart() {
  * 计算各阶段占比（消耗）
  */
 function getStagePercentage(stage: keyof StageSpend, total: number): number {
-  if (!dailyData.value || total === 0) return 0;
-  return (dailyData.value.stages[stage] / total) * 100;
+  if (!rangeData.value || total === 0) return 0;
+  return (rangeData.value.stages[stage] / total) * 100;
 }
 
 /**
  * 计算各阶段占比（销售额）
  */
 function getSalesPercentage(stage: keyof StageSales, total: number): number {
-  if (!dailyData.value || total === 0) return 0;
-  return (dailyData.value.sales[stage] / total) * 100;
+  if (!rangeData.value || total === 0) return 0;
+  return (rangeData.value.sales[stage] / total) * 100;
 }
 
 /**
  * 计算总消耗
  */
 const totalSpend = computed(() => {
-  if (!dailyData.value) return 0;
-  const stages = dailyData.value.stages;
+  if (!rangeData.value) return 0;
+  const stages = rangeData.value.stages;
   return (
     stages.product +
     stages.testing +
@@ -957,8 +967,8 @@ const totalSpend = computed(() => {
  * 计算总销售额
  */
 const totalSales = computed(() => {
-  if (!dailyData.value) return 0;
-  const sales = dailyData.value.sales;
+  if (!rangeData.value) return 0;
+  const sales = rangeData.value.sales;
   return (
     sales.product +
     sales.testing +
@@ -980,15 +990,20 @@ function handleResize() {
  * 执行搜索（点击搜索按钮时调用）
  */
 async function handleSearch() {
-  await Promise.all([fetchDailyData(), fetchTrendData()]);
+  await Promise.all([fetchRangeData(), fetchTrendData()]);
 }
 
 /**
  * 打开指定阶段的商品列表弹窗
  */
 function fetchStageProducts(stage: StageKey) {
-  if (!selectedDate.value) {
-    ElMessage.warning("请先选择日期");
+  if (
+    !dateRange.value ||
+    dateRange.value.length !== 2 ||
+    !dateRange.value[0] ||
+    !dateRange.value[1]
+  ) {
+    ElMessage.warning("请先选择时间段");
     return;
   }
 
@@ -1001,11 +1016,11 @@ function fetchStageProducts(stage: StageKey) {
   dialogVisible.value = true;
 }
 
-// 监听 dailyData 变化，自动更新饼图
+// 监听 rangeData 变化，自动更新饼图
 watch(
-  () => dailyData.value,
+  () => rangeData.value,
   () => {
-    if (dailyData.value) {
+    if (rangeData.value) {
       // 等待 DOM 渲染完成（因为饼图容器在 v-if 中）
       nextTick(() => {
         // 再次等待，确保容器已完全渲染
@@ -1041,11 +1056,11 @@ onMounted(() => {
       initRoiChart(roiChartRef.value);
     }
     // 饼图在有数据时再初始化
-    if (pieChartRef.value && dailyData.value) {
+    if (pieChartRef.value && rangeData.value) {
       initPieChart(pieChartRef.value);
       updatePieChart();
     }
-    if (salesPieChartRef.value && dailyData.value) {
+    if (salesPieChartRef.value && rangeData.value) {
       initSalesPieChart(salesPieChartRef.value);
       updateSalesPieChart();
     }
@@ -1086,13 +1101,15 @@ onUnmounted(() => {
             />
           </el-select>
           <el-date-picker
-            v-model="selectedDate"
-            type="date"
-            placeholder="选择日期"
+            v-model="dateRange"
+            type="daterange"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
             :disabled="loading"
             value-format="YYYY-MM-DD"
             size="large"
-            style="margin-right: 12px"
+            style="width: 120px; margin-right: 12px"
           />
           <el-select
             v-model="selectedCustomCategory"
@@ -1120,7 +1137,7 @@ onUnmounted(() => {
           </el-button>
         </div>
 
-        <div v-if="dailyData" class="overview-content">
+        <div v-if="rangeData" class="overview-content">
           <!-- 各阶段占比 -->
           <div class="stages-overview">
             <div class="section-title">各阶段消耗占比</div>
@@ -1141,7 +1158,7 @@ onUnmounted(() => {
                     <div class="stage-label">{{ stage }}</div>
                     <div class="stage-value">
                       ฿{{
-                        dailyData.stages[key as keyof StageSpend].toFixed(2)
+                        rangeData.stages[key as keyof StageSpend].toFixed(2)
                       }}
                     </div>
                     <div class="stage-percentage">
@@ -1188,7 +1205,7 @@ onUnmounted(() => {
                   <div class="stage-card" :class="key">
                     <div class="stage-label">{{ stage }}</div>
                     <div class="stage-value">
-                      ฿{{ dailyData.sales[key as keyof StageSales].toFixed(2) }}
+                      ฿{{ rangeData.sales[key as keyof StageSales].toFixed(2) }}
                     </div>
                     <div class="stage-percentage">
                       {{
@@ -1224,7 +1241,7 @@ onUnmounted(() => {
               >
                 <div class="roi-stage-label">{{ stage }}</div>
                 <div class="roi-value-small">
-                  {{ dailyData.roi[key as keyof StageRoi].toFixed(2) }}
+                  {{ rangeData.roi[key as keyof StageRoi].toFixed(2) }}
                 </div>
               </div>
             </div>
@@ -1257,7 +1274,8 @@ onUnmounted(() => {
     <ProductListDialog
       v-model:visible="dialogVisible"
       :stage="currentStage"
-      :date="selectedDate"
+      :start-date="dateRange?.[0] || ''"
+      :end-date="dateRange?.[1] || ''"
       :shop-i-d="selectedShop"
       :custom-category="selectedCustomCategory"
     />
@@ -1468,7 +1486,7 @@ onUnmounted(() => {
 .roi-value-small {
   font-size: 24px;
   font-weight: 700;
-  color: var(--dopamine-neon-green);
+  color: #1f1235;
   line-height: 1;
   letter-spacing: 0.5px;
 }
@@ -1476,7 +1494,7 @@ onUnmounted(() => {
 .roi-value {
   font-size: 42px;
   font-weight: 700;
-  color: var(--dopamine-neon-green);
+  color: #1f1235;
   line-height: 1;
   letter-spacing: 1px;
   text-shadow: 0 10px 24px rgba(31, 18, 53, 0.2);

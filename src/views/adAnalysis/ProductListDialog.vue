@@ -22,7 +22,8 @@ type StageKey = "product" | "testing" | "potential" | "abandoned" | "other";
 interface Props {
   visible: boolean;
   stage: StageKey | null;
-  date: string;
+  startDate: string;
+  endDate: string;
   shopID: string;
   customCategory?: string;
 }
@@ -126,7 +127,7 @@ watch(
 
 // 监听 props 变化，重新获取数据
 watch(
-  () => [props.date, props.shopID, props.customCategory, props.stage],
+  () => [props.startDate, props.endDate, props.shopID, props.customCategory, props.stage],
   () => {
     if (dialogVisible.value && props.stage) {
       productListPage.value = 1;
@@ -139,8 +140,8 @@ watch(
  * 获取指定阶段的商品列表
  */
 async function fetchStageProducts() {
-  if (!props.date) {
-    ElMessage.warning("请先选择日期");
+  if (!props.startDate || !props.endDate) {
+    ElMessage.warning("请先选择时间段");
     return;
   }
 
@@ -163,7 +164,8 @@ async function fetchStageProducts() {
     }
 
     const params: any = {
-      date: props.date,
+      startDate: props.startDate,
+      endDate: props.endDate,
       shopID: props.shopID,
       shopName: shopOption.label,
       stage: STAGE_FIELD_MAP[props.stage],
