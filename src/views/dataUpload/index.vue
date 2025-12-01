@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, watch, computed } from "vue";
 import type { UploadProps, UploadInstance, FormInstance } from "element-plus";
 import { ElMessage } from "element-plus";
 import { debounce } from "@pureadmin/utils";
@@ -14,9 +14,11 @@ import {
   UploadFilled,
   InfoFilled,
   Check,
-  Close
+  Close,
+  Calendar
 } from "@element-plus/icons-vue";
 import { shopOptions, getShopOption } from "@/constants/shops";
+import UploadDatesDrawer from "./components/UploadDatesDrawer.vue";
 
 defineOptions({
   name: "DataUpload"
@@ -38,6 +40,19 @@ const fileList = ref<UploadProps["fileList"]>([]);
 // 上传状态
 const uploading = ref(false);
 
+// 抽屉显示状态
+const drawerVisible = ref(false);
+
+// 判断【查看已上传日期】按钮是否可点击
+// 需要：选中店铺、选中上传类型，并且上传类型为广告（ad）或商业分析（daily）
+const canViewUploadDates = computed(() => {
+  const hasShop = !!formData.value.shop;
+  const hasType = !!formData.value.type;
+  const isValidType =
+    formData.value.type === "ad" || formData.value.type === "daily";
+  return hasShop && hasType && isValidType;
+});
+
 // 上传类型选项
 const uploadTypes = [
   {
@@ -45,7 +60,7 @@ const uploadTypes = [
     value: "ad"
   },
   {
-    label: "每日文件上传（单日）",
+    label: "商业分析文件上传（单日）",
     value: "daily"
   },
   {
@@ -220,6 +235,20 @@ watch(
 
     <!-- 主内容区域 -->
     <div class="main-content">
+      <!-- 查看已上传日期按钮 -->
+      <div class="upload-status-button">
+        <el-button
+          type="primary"
+          :icon="Calendar"
+          circle
+          size="large"
+          :disabled="!canViewUploadDates"
+          @click="drawerVisible = true"
+        >
+          <el-icon><Calendar /></el-icon>
+        </el-button>
+        <span class="button-tooltip">查看已上传日期</span>
+      </div>
       <!-- 上传配置卡片 -->
       <el-card class="config-card" shadow="hover">
         <template #header>
@@ -366,6 +395,12 @@ watch(
         </div>
       </el-card>
     </div>
+
+    <!-- 右侧抽屉：已上传日期日历 -->
+    <UploadDatesDrawer
+      v-model:visible="drawerVisible"
+      :shopID="formData.shop"
+    />
   </div>
 </template>
 
@@ -748,6 +783,39 @@ watch(
       text-align: left;
       margin-bottom: 10px;
     }
+  }
+}
+
+.upload-status-button {
+  position: fixed;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+
+  .el-button {
+    @include dopamine.dopamine-primary-button();
+    box-shadow: 0 8px 20px rgba(108, 99, 255, 0.3);
+    transition: all 0.3s ease;
+
+    &:hover {
+      transform: scale(1.1);
+      box-shadow: 0 12px 30px rgba(108, 99, 255, 0.4);
+    }
+  }
+
+  .button-tooltip {
+    font-size: 12px;
+    color: var(--dopamine-contrast);
+    background: rgba(255, 255, 255, 0.9);
+    padding: 4px 8px;
+    border-radius: 6px;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   }
 }
 </style>

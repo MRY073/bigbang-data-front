@@ -55,3 +55,37 @@ export const uploadData = (formData: FormData): Promise<UploadResponse> => {
     }
   );
 };
+
+/**
+ * 获取已上传日期列表的响应类型
+ */
+export type UploadedDatesResponse = {
+  success: boolean;
+  message?: string;
+  data?: {
+    ad: string[]; // 广告已上传的日期列表，格式：['2024-01-01', '2024-01-02', ...]
+    daily: string[]; // 商业分析已上传的日期列表，格式：['2024-01-01', '2024-01-02', ...]
+  };
+};
+
+/**
+ * 获取已上传日期列表接口
+ * @param shopID 店铺ID（可选，如果不传则返回所有店铺的数据）
+ * @returns Promise<UploadedDatesResponse>
+ *
+ * @example
+ * ```typescript
+ * // 获取所有店铺的已上传日期
+ * const result = await getUploadedDates();
+ *
+ * // 获取指定店铺的已上传日期
+ * const result = await getUploadedDates('1489850435');
+ * ```
+ */
+export const getUploadedDates = (
+  shopID?: string
+): Promise<UploadedDatesResponse> => {
+  return http.request<UploadedDatesResponse>("get", "/api/upload/dates", {
+    params: shopID ? { shopID } : {}
+  });
+};
