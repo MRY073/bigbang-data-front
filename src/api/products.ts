@@ -23,6 +23,7 @@ export interface BackendProduct {
   potential_stage: StageTimeRange;
   product_stage: StageTimeRange;
   abandoned_stage: StageTimeRange;
+  natural_stage: StageTimeRange;
   custom_category_1?: string | null;
   custom_category_2?: string | null;
   custom_category_3?: string | null;
@@ -36,7 +37,7 @@ export interface UpdateStageParams {
   product_id: string;
   shopID: string;
   shopName: string;
-  stage_type: "testing" | "potential" | "product" | "abandoned";
+  stage_type: "testing" | "potential" | "product" | "abandoned" | "natural";
   start_time: string | null;
   end_time: string | null;
 }

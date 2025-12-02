@@ -135,3 +135,51 @@ export const batchGetPotentialLinkMonitorAISuggestion = (params: {
   );
 };
 
+// 获取自然流商品监控列表
+export const getNaturalStageMonitorList = (params: {
+  shopID: string;
+  shopName: string;
+  date: string;
+  customCategory?: string;
+}): Promise<ApiResponse<ProductCard[]>> => {
+  return http.request<ApiResponse<ProductCard[]>>(
+    "get",
+    "/api/natural/stage/monitor/list",
+    {
+      params
+    }
+  );
+};
+
+// 获取自然流商品监控的AI建议
+export const getNaturalStageMonitorAISuggestion = (params: {
+  shopID: string;
+  shopName: string;
+  date: string;
+  productID: string;
+  productName: string;
+}): Promise<ApiResponse<AISuggestionResponse>> => {
+  return http.request<ApiResponse<AISuggestionResponse>>(
+    "get",
+    "/api/natural/stage/monitor/ai-suggestion",
+    {
+      params
+    }
+  );
+};
+
+// 批量获取自然流商品监控的AI建议
+export const batchGetNaturalStageMonitorAISuggestion = (params: {
+  shopID: string;
+  shopName: string;
+  date: string;
+}): Promise<ApiResponse<BatchAISuggestionResponse>> => {
+  return http.request<ApiResponse<BatchAISuggestionResponse>>(
+    "post",
+    "/api/natural/stage/monitor/batch-ai-suggestion",
+    {
+      data: params
+    }
+  );
+};
+

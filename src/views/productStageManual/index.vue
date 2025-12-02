@@ -13,7 +13,7 @@ import { shopOptions, DEFAULT_SHOP_ID, getShopOption } from "@/constants/shops";
 defineOptions({ name: "ProductStageManual" });
 
 // 阶段类型定义（与后端接口一致）
-type StageType = "testing" | "potential" | "product" | "abandoned";
+type StageType = "testing" | "potential" | "product" | "abandoned" | "natural";
 
 // 阶段时间段对象
 type StageTimeRange = {
@@ -30,6 +30,7 @@ type BackendProduct = {
   potential_stage: StageTimeRange;
   product_stage: StageTimeRange;
   abandoned_stage: StageTimeRange;
+  natural_stage: StageTimeRange;
   custom_category_1?: string | null;
   custom_category_2?: string | null;
   custom_category_3?: string | null;
@@ -57,6 +58,10 @@ type ProductRow = {
     start_time: string | null;
     end_time: string | null;
   };
+  natural_stage: {
+    start_time: string | null;
+    end_time: string | null;
+  };
   // 保存状态
   savingFlags: Record<StageType, boolean>;
   // computed at runtime
@@ -73,7 +78,8 @@ const stageTypeMap: Record<StageType, string> = {
   testing: "测款阶段",
   potential: "潜力阶段",
   product: "成品阶段",
-  abandoned: "放弃阶段"
+  abandoned: "放弃阶段",
+  natural: "自然流阶段"
 };
 
 // 筛选阶段类型（包含"全部"选项）
@@ -281,7 +287,13 @@ function isTimeRangeOverlap(
 function validateStageTimeRanges(
   row: ProductRow
 ): Array<[StageType, StageType]> {
-  const stages: StageType[] = ["testing", "potential", "product", "abandoned"];
+  const stages: StageType[] = [
+    "testing",
+    "potential",
+    "product",
+    "abandoned",
+    "natural"
+  ];
   const overlaps: Array<[StageType, StageType]> = [];
 
   for (let i = 0; i < stages.length; i++) {
@@ -309,8 +321,14 @@ function validateStageTimeRanges(
  */
 function computeCurrentStageForRow(row: ProductRow): StageType | null {
   const today = new Date();
-  // priority: abandoned -> product -> potential -> testing
-  const order: StageType[] = ["abandoned", "product", "potential", "testing"];
+  // priority: abandoned -> product -> potential -> testing -> natural
+  const order: StageType[] = [
+    "abandoned",
+    "product",
+    "potential",
+    "testing",
+    "natural"
+  ];
   for (const stageType of order) {
     const stage = row[
       `${stageType}_stage` as keyof ProductRow
@@ -365,11 +383,16 @@ function initProducts(backendProducts: BackendProduct[]) {
         start_time: isoToDateTime(item.abandoned_stage?.start_time || null),
         end_time: isoToDateTime(item.abandoned_stage?.end_time || null)
       },
+      natural_stage: {
+        start_time: isoToDateTime(item.natural_stage?.start_time || null),
+        end_time: isoToDateTime(item.natural_stage?.end_time || null)
+      },
       savingFlags: {
         testing: false,
         potential: false,
         product: false,
-        abandoned: false
+        abandoned: false,
+        natural: false
       },
       currentStage: null,
       customCategories,
@@ -502,7 +525,8 @@ async function saveProductStages(productId: string) {
     "testing",
     "potential",
     "product",
-    "abandoned"
+    "abandoned",
+    "natural"
   ];
   allStages.forEach(stageType => {
     row.savingFlags[stageType] = true;
@@ -786,6 +810,7 @@ onMounted(() => {
             <el-option label="潜力阶段" value="potential" />
             <el-option label="成品阶段" value="product" />
             <el-option label="放弃阶段" value="abandoned" />
+            <el-option label="自然流阶段" value="natural" />
           </el-select>
           <el-select
             v-model="selectedCustomCategory"
@@ -973,7 +998,8 @@ onMounted(() => {
                     row.savingFlags.testing ||
                     row.savingFlags.potential ||
                     row.savingFlags.product ||
-                    row.savingFlags.abandoned
+                    row.savingFlags.abandoned ||
+                    row.savingFlags.natural
                   "
                   @click="saveProductStages(row.product_id)"
                   >保存</el-button
@@ -1102,6 +1128,39 @@ onMounted(() => {
                   />
                   <el-date-picker
                     v-model="row.abandoned_stage.end_time"
+                    type="datetime"
+                    placeholder="结束时间"
+                    value-format="YYYY-MM-DD HH:mm:ss"
+                    format="YYYY-MM-DD HH:mm:ss"
+                    clearable
+                    style="width: 140px"
+                  />
+                </div>
+              </div>
+            </template>
+          </el-table-column>
+
+          <!-- 自然流阶段 -->
+          <el-table-column
+            label="自然流阶段"
+            width="280"
+            align="center"
+            header-align="center"
+          >
+            <template #default="{ row }">
+              <div class="stage-editor">
+                <div class="time-picker-group">
+                  <el-date-picker
+                    v-model="row.natural_stage.start_time"
+                    type="datetime"
+                    placeholder="开始时间"
+                    value-format="YYYY-MM-DD HH:mm:ss"
+                    format="YYYY-MM-DD HH:mm:ss"
+                    clearable
+                    style="width: 140px; margin-bottom: 8px"
+                  />
+                  <el-date-picker
+                    v-model="row.natural_stage.end_time"
                     type="datetime"
                     placeholder="结束时间"
                     value-format="YYYY-MM-DD HH:mm:ss"
@@ -1371,23 +1430,33 @@ onMounted(() => {
 }
 
 .current-badge.stage-testing {
-  background: linear-gradient(135deg, #6c63ff 0%, #8c7bff 100%);
-  border: 1px solid rgba(108, 99, 255, 0.65);
+  background: linear-gradient(135deg, #5a52e8 0%, #7b6fff 100%);
+  border: 1px solid rgba(90, 82, 232, 0.75);
+  box-shadow: 0 4px 12px rgba(90, 82, 232, 0.3);
 }
 
 .current-badge.stage-potential {
-  background: linear-gradient(135deg, #ff9b6a 0%, #ffd33d 95%);
-  border: 1px solid rgba(255, 155, 106, 0.55);
+  background: linear-gradient(135deg, #ff8c42 0%, #ffb84d 100%);
+  border: 1px solid rgba(255, 140, 66, 0.75);
+  box-shadow: 0 4px 12px rgba(255, 140, 66, 0.3);
 }
 
 .current-badge.stage-product {
-  background: linear-gradient(135deg, #2de2e6 0%, #66ffb5 100%);
-  border: 1px solid rgba(45, 226, 230, 0.6);
+  background: linear-gradient(135deg, #1dd1d4 0%, #4de8a8 100%);
+  border: 1px solid rgba(29, 209, 212, 0.75);
+  box-shadow: 0 4px 12px rgba(29, 209, 212, 0.3);
 }
 
 .current-badge.stage-abandoned {
-  background: linear-gradient(135deg, #ff6f91 0%, #ff3f6c 100%);
-  border: 1px solid rgba(255, 63, 108, 0.55);
+  background: linear-gradient(135deg, #e8556e 0%, #ff6b8a 100%);
+  border: 1px solid rgba(232, 85, 110, 0.75);
+  box-shadow: 0 4px 12px rgba(232, 85, 110, 0.3);
+}
+
+.current-badge.stage-natural {
+  background: linear-gradient(135deg, #4dd9a0 0%, #2dd1b3 100%);
+  border: 1px solid rgba(77, 217, 160, 0.75);
+  box-shadow: 0 4px 12px rgba(77, 217, 160, 0.3);
 }
 
 .dash {
