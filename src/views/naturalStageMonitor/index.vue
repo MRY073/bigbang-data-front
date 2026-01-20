@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
 import { ElMessage, ElLoading, ElDialog, ElMessageBox } from "element-plus";
-import { Loading, Warning, ArrowDown, ArrowUp } from "@element-plus/icons-vue";
+import { Loading, Warning, ArrowDown, ArrowUp, Refresh } from "@element-plus/icons-vue";
 import type { LoadingInstance } from "element-plus";
 import dayjs from "dayjs";
 import {
@@ -923,6 +923,17 @@ onMounted(() => {
                   >GMV</el-checkbox
                 >
               </div>
+            </div>
+            <div class="control-group">
+              <el-button
+                :icon="Refresh"
+                size="small"
+                type="primary"
+                :disabled="chartLoadingMap[p.id] || false"
+                @click="() => loadChartData(p.id)"
+              >
+                刷新图表
+              </el-button>
             </div>
           </div>
 
