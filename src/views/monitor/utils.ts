@@ -5,6 +5,50 @@ export const getPickerShortcuts = (): Array<{
 }> => {
   return [
     {
+      text: "近3天",
+      value: () => {
+        const end = new Date();
+        end.setHours(23, 59, 59, 999);
+        const start = new Date();
+        start.setDate(start.getDate() - 2);
+        start.setHours(0, 0, 0, 0);
+        return [start, end];
+      }
+    },
+    {
+      text: "近7天",
+      value: () => {
+        const end = new Date();
+        end.setHours(23, 59, 59, 999);
+        const start = new Date();
+        start.setDate(start.getDate() - 6);
+        start.setHours(0, 0, 0, 0);
+        return [start, end];
+      }
+    },
+    {
+      text: "近30天",
+      value: () => {
+        const end = new Date();
+        end.setHours(23, 59, 59, 999);
+        const start = new Date();
+        start.setDate(start.getDate() - 29);
+        start.setHours(0, 0, 0, 0);
+        return [start, end];
+      }
+    },
+    {
+      text: "近90天",
+      value: () => {
+        const end = new Date();
+        end.setHours(23, 59, 59, 999);
+        const start = new Date();
+        start.setDate(start.getDate() - 89);
+        start.setHours(0, 0, 0, 0);
+        return [start, end];
+      }
+    },
+    {
       text: "今天",
       value: () => {
         const today = new Date();

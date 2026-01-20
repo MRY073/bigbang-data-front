@@ -7,6 +7,7 @@ import { getAdRatio, getAdTrend } from "@/api/adAnalysis";
 import { shopOptions, DEFAULT_SHOP_ID, getShopOption } from "@/constants/shops";
 import { getCustomCategoryOptions } from "@/api/productItems";
 import ProductListDialog from "./ProductListDialog.vue";
+import { getPickerShortcuts } from "@/views/monitor/utils";
 
 defineOptions({ name: "AdAnalysis" });
 
@@ -1108,6 +1109,7 @@ onUnmounted(() => {
             end-placeholder="结束日期"
             :disabled="loading"
             value-format="YYYY-MM-DD"
+            :shortcuts="getPickerShortcuts()"
             size="large"
             style="width: 120px; margin-right: 12px"
           />

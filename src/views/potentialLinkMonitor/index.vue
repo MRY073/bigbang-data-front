@@ -7,10 +7,29 @@ import dayjs from "dayjs";
 import {
   getPotentialLinkMonitorList,
   getPotentialLinkMonitorAISuggestion,
-  batchGetPotentialLinkMonitorAISuggestion
+  batchGetPotentialLinkMonitorAISuggestion,
+  getPotentialLinkMonitorChart,
+  savePotentialLinkMonitorAnalysis,
+  type ChartDataResponse
 } from "@/api/monitor";
 import { getCustomCategoryOptions } from "@/api/productItems";
 import { shopOptions, DEFAULT_SHOP_ID, getShopOption } from "@/constants/shops";
+import MonitorLineChart from "@/components/MonitorLineChart/index.vue";
+import { getPickerShortcuts } from "@/views/monitor/utils";
+
+// 简单的防抖函数
+function debounce<T extends (...args: any[]) => any>(
+  func: T,
+  wait: number
+): (...args: Parameters<T>) => void {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  return function (this: any, ...args: Parameters<T>) {
+    if (timeout) clearTimeout(timeout);
+    timeout = setTimeout(() => {
+      func.apply(this, args);
+    }, wait);
+  };
+}
 
 defineOptions({ name: "PotentialLinkMonitor" });
 
@@ -28,12 +47,12 @@ type ProductCard = {
   id: string;
   name: string;
   image?: string | null;
-  visitorsAvg: number[];
-  visitorsVolatilityBaseline: Volatility[];
-  adCostAvg: number[];
-  adCostVolatilityBaseline: Volatility[];
-  salesAvg: number[];
-  salesVolatilityBaseline: Volatility[];
+  visitorsAvg?: number[]; // 已废弃
+  visitorsVolatilityBaseline?: Volatility[]; // 已废弃
+  adCostAvg?: number[]; // 已废弃
+  adCostVolatilityBaseline?: Volatility[]; // 已废弃
+  salesAvg?: number[]; // 已废弃
+  salesVolatilityBaseline?: Volatility[]; // 已废弃
   warningLevel: WarningLevel;
   warningMessages?: string[];
   // 自定义分类字段（如果后端返回）
@@ -41,18 +60,47 @@ type ProductCard = {
   custom_category_2?: string | null;
   custom_category_3?: string | null;
   custom_category_4?: string | null;
+  analysis?: string | null;
+  improvementPlan?: string | null;
 };
 
 const products = ref<ProductCard[]>([]);
 const loading = ref(false);
 const selectedShop = ref<string>(DEFAULT_SHOP_ID); // 默认选择第一个店铺
-const selectedDate = ref<string>(dayjs().format("YYYY-MM-DD")); // 默认选择今天
 
 // 折叠展开状态
 const expandedProducts = ref<Record<string, boolean>>({});
 
 // 批量AI建议相关
 const batchAISuggestionLoading = ref(false);
+
+// 图表相关
+const chartDataMap = ref<Record<string, ChartDataResponse | null>>({});
+const chartLoadingMap = ref<Record<string, boolean>>({});
+const chartErrorMap = ref<Record<string, string>>({});
+
+// 日期范围 - 每个商品独立的日期范围
+const dateRangeMap = ref<Record<string, [string, string]>>({});
+
+// 可见系列控制 - 每个商品独立的控制
+const visibleSeriesMap = ref<
+  Record<
+    string,
+    {
+      visitors: boolean;
+      cartRate: boolean;
+      conversionRate: boolean;
+      orderCount: boolean;
+      buyerCount: boolean;
+      gmv: boolean;
+    }
+  >
+>({});
+
+// 分析内容 - 每个商品独立的分析内容
+const analysisMap = ref<Record<string, string>>({});
+const improvementPlanMap = ref<Record<string, string>>({});
+const savingMap = ref<Record<string, boolean>>({});
 
 // 分页相关
 const currentPage = ref(1);
@@ -108,9 +156,171 @@ function showLoader(text = "加载中..."): LoadingInstance {
   return ElLoading.service({ lock: true, text, background: "rgba(0,0,0,0.2)" });
 }
 
+// 初始化商品的日期范围和可见系列
+function initProductSettings(productId: string) {
+  if (!dateRangeMap.value[productId]) {
+    const endDate = dayjs().format("YYYY-MM-DD");
+    const startDate = dayjs().subtract(29, "day").format("YYYY-MM-DD");
+    dateRangeMap.value[productId] = [startDate, endDate];
+  }
+  if (!visibleSeriesMap.value[productId]) {
+    visibleSeriesMap.value[productId] = {
+      visitors: true,
+      cartRate: true,
+      conversionRate: true,
+      orderCount: true,
+      buyerCount: true,
+      gmv: true
+    };
+  }
+}
+
+// 获取商品的日期范围
+function getProductDateRange(productId: string): [string, string] {
+  initProductSettings(productId);
+  return dateRangeMap.value[productId];
+}
+
+// 获取商品的可见系列
+function getProductVisibleSeries(productId: string) {
+  initProductSettings(productId);
+  return visibleSeriesMap.value[productId];
+}
+
+// 获取商品的分析内容
+function getProductAnalysis(productId: string): string {
+  return analysisMap.value[productId] || "";
+}
+
+// 获取商品的改善方案
+function getProductImprovementPlan(productId: string): string {
+  return improvementPlanMap.value[productId] || "";
+}
+
+// 加载图表数据
+async function loadChartData(productId: string) {
+  if (!selectedShop.value) return;
+
+  const shopOption = getShopOption(selectedShop.value);
+  if (!shopOption) return;
+
+  const [startDate, endDate] = getProductDateRange(productId);
+  chartLoadingMap.value[productId] = true;
+  chartErrorMap.value[productId] = "";
+
+  try {
+    const result = await getPotentialLinkMonitorChart({
+      shopID: selectedShop.value,
+      shopName: shopOption.label,
+      productID: productId,
+      startDate,
+      endDate
+    });
+
+    if (result.success && result.data) {
+      chartDataMap.value[productId] = result.data;
+    } else {
+      throw new Error(result.error || result.message || "获取图表数据失败");
+    }
+  } catch (error: any) {
+    console.error("加载图表数据失败:", error);
+    chartErrorMap.value[productId] = error?.message || "加载图表数据失败";
+    chartDataMap.value[productId] = null;
+  } finally {
+    chartLoadingMap.value[productId] = false;
+  }
+}
+
+// 处理日期范围变化
+function handleDateRangeChange(productId: string, range: [string, string] | null) {
+  if (!range) return;
+  dateRangeMap.value[productId] = range;
+  loadChartData(productId);
+}
+
+// 处理可见系列变化
+function handleVisibleSeriesChange(
+  productId: string,
+  key: keyof typeof visibleSeriesMap.value[string],
+  value: boolean
+) {
+  const visibleSeries = getProductVisibleSeries(productId);
+  const newVisibleSeries = { ...visibleSeries, [key]: value };
+  
+  // 确保至少有一条折线显示
+  const visibleCount = Object.values(newVisibleSeries).filter(v => v).length;
+  if (visibleCount === 0) {
+    ElMessage.warning("至少需要显示一条折线");
+    return;
+  }
+
+  visibleSeriesMap.value[productId] = newVisibleSeries;
+}
+
+// 保存分析内容（防抖）
+const debouncedSaveAnalysis = debounce(
+  async (productId: string, analysis: string, improvementPlan: string) => {
+    if (!selectedShop.value) return;
+
+    const shopOption = getShopOption(selectedShop.value);
+    if (!shopOption) return;
+
+    savingMap.value[productId] = true;
+    try {
+      await savePotentialLinkMonitorAnalysis({
+        shopID: selectedShop.value,
+        shopName: shopOption.label,
+        productID: productId,
+        analysis: analysis || undefined,
+        improvementPlan: improvementPlan || undefined
+      });
+      ElMessage.success("保存成功");
+    } catch (error: any) {
+      console.error("保存分析失败:", error);
+      ElMessage.error(error?.message || "保存失败，请稍后重试");
+    } finally {
+      savingMap.value[productId] = false;
+    }
+  },
+  800
+);
+
+// 处理分析内容变化
+function handleAnalysisChange(productId: string, value: string) {
+  if (value.length > 10000) {
+    ElMessage.warning("分析内容不能超过10000字");
+    return;
+  }
+  analysisMap.value[productId] = value;
+  debouncedSaveAnalysis(
+    productId,
+    value,
+    getProductImprovementPlan(productId)
+  );
+}
+
+// 处理改善方案变化
+function handleImprovementPlanChange(productId: string, value: string) {
+  if (value.length > 10000) {
+    ElMessage.warning("改善方案不能超过10000字");
+    return;
+  }
+  improvementPlanMap.value[productId] = value;
+  debouncedSaveAnalysis(
+    productId,
+    getProductAnalysis(productId),
+    value
+  );
+}
+
 /** 切换商品展开/折叠状态 */
 function toggleExpand(productId: string) {
   expandedProducts.value[productId] = !expandedProducts.value[productId];
+  // 展开时加载图表数据
+  if (expandedProducts.value[productId]) {
+    initProductSettings(productId);
+    loadChartData(productId);
+  }
 }
 
 /** 获取商品展开状态 */
@@ -334,8 +544,7 @@ async function fetchData() {
     }
     const params: any = {
       shopID: selectedShop.value,
-      shopName: shopOption.label,
-      date: selectedDate.value
+      shopName: shopOption.label
     };
     // 如果选择了自定义分类，添加到请求参数中
     if (selectedCustomCategory.value) {
@@ -344,13 +553,27 @@ async function fetchData() {
     const result = await getPotentialLinkMonitorList(params);
     if (result.code === 200 && result.data) {
       // 规范化数据，确保每个产品都有必要的字段
-      products.value = (result.data || []).map((item: ProductCard) => ({
-        ...item,
-        visitorsVolatilityBaseline: item.visitorsVolatilityBaseline || [],
-        adCostVolatilityBaseline: item.adCostVolatilityBaseline || [],
-        salesVolatilityBaseline: item.salesVolatilityBaseline || [],
-        warningMessages: item.warningMessages || []
-      }));
+      products.value = (result.data || []).map((item: ProductCard) => {
+        const product = {
+          ...item,
+          warningMessages: item.warningMessages || [],
+          analysis: item.analysis || null,
+          improvementPlan: item.improvementPlan || null
+        };
+        
+        // 初始化商品设置
+        initProductSettings(item.id);
+        
+        // 加载分析内容
+        if (item.analysis) {
+          analysisMap.value[item.id] = item.analysis;
+        }
+        if (item.improvementPlan) {
+          improvementPlanMap.value[item.id] = item.improvementPlan;
+        }
+        
+        return product;
+      });
       // 从返回的数据中提取分类选项
       if (result.data && Array.isArray(result.data)) {
         const categories: string[] = [];
@@ -388,11 +611,6 @@ async function batchGetAISuggestion() {
     return;
   }
 
-  if (!selectedDate.value) {
-    ElMessage.warning("请先选择日期");
-    return;
-  }
-
   batchAISuggestionLoading.value = true;
   try {
     const shopOption = getShopOption(selectedShop.value);
@@ -402,8 +620,7 @@ async function batchGetAISuggestion() {
 
     const result = await batchGetPotentialLinkMonitorAISuggestion({
       shopID: selectedShop.value,
-      shopName: shopOption.label,
-      date: selectedDate.value
+      shopName: shopOption.label
     });
 
     if (result.success && result.data) {
@@ -426,8 +643,7 @@ async function batchGetAISuggestion() {
             // 用户确认覆盖，再次调用接口（可能需要force参数）
             const retryResult = await batchGetPotentialLinkMonitorAISuggestion({
               shopID: selectedShop.value,
-              shopName: shopOption.label,
-              date: selectedDate.value
+              shopName: shopOption.label
             });
             if (retryResult.success) {
               ElMessage.success("已重新获取AI建议");
@@ -578,14 +794,6 @@ onMounted(() => {
           :value="item.value"
         />
       </el-select>
-      <el-date-picker
-        v-model="selectedDate"
-        type="date"
-        placeholder="选择日期"
-        value-format="YYYY-MM-DD"
-        :disabled-date="(date: Date) => date > new Date()"
-        style="width: 200px; margin-right: 12px"
-      />
       <el-select
         v-model="selectedCustomCategory"
         placeholder="请选择自定义分类"
@@ -668,241 +876,115 @@ onMounted(() => {
           </div>
         </div>
 
-        <div v-if="isExpanded(p.id)" class="metrics">
-          <div class="metric-block">
-            <div class="metric-title">日均访客(30/15/7/3/1日)</div>
-            <div class="metric-values">
-              <span
-                v-for="(v, i) in p.visitorsAvg"
-                :key="i"
-                :class="['metric-value', 'c' + i]"
-                >{{ formatNumber(v) }}</span
-              >
+        <div v-if="isExpanded(p.id)" class="expanded-content">
+          <!-- 图表控制区域 -->
+          <div class="chart-controls">
+            <div class="control-group">
+              <label class="control-label">日期范围：</label>
+              <el-date-picker
+                v-model="dateRangeMap[p.id]"
+                type="daterange"
+                range-separator="至"
+                start-placeholder="开始日期"
+                end-placeholder="结束日期"
+                value-format="YYYY-MM-DD"
+                :disabled-date="(date: Date) => date > new Date()"
+                :shortcuts="getPickerShortcuts()"
+                :disabled="chartLoadingMap[p.id] || false"
+                style="width: 300px"
+                @change="(val: [string, string] | null) => handleDateRangeChange(p.id, val)"
+              />
+            </div>
+            <div class="control-group">
+              <label class="control-label">显示指标：</label>
+              <div class="checkbox-group">
+                <el-checkbox
+                  v-model="visibleSeriesMap[p.id].visitors"
+                  @change="(val: boolean) => handleVisibleSeriesChange(p.id, 'visitors', val)"
+                  >访客数</el-checkbox
+                >
+                <el-checkbox
+                  v-model="visibleSeriesMap[p.id].cartRate"
+                  @change="(val: boolean) => handleVisibleSeriesChange(p.id, 'cartRate', val)"
+                  >加购率</el-checkbox
+                >
+                <el-checkbox
+                  v-model="visibleSeriesMap[p.id].conversionRate"
+                  @change="(val: boolean) => handleVisibleSeriesChange(p.id, 'conversionRate', val)"
+                  >转化率</el-checkbox
+                >
+                <el-checkbox
+                  v-model="visibleSeriesMap[p.id].orderCount"
+                  @change="(val: boolean) => handleVisibleSeriesChange(p.id, 'orderCount', val)"
+                  >订单量</el-checkbox
+                >
+                <el-checkbox
+                  v-model="visibleSeriesMap[p.id].buyerCount"
+                  @change="(val: boolean) => handleVisibleSeriesChange(p.id, 'buyerCount', val)"
+                  >买家数</el-checkbox
+                >
+                <el-checkbox
+                  v-model="visibleSeriesMap[p.id].gmv"
+                  @change="(val: boolean) => handleVisibleSeriesChange(p.id, 'gmv', val)"
+                  >GMV</el-checkbox
+                >
+              </div>
             </div>
           </div>
 
-          <div class="metric-block">
-            <div class="metric-title">访客数短期波动相对长期基准(60)指标</div>
-            <div class="metric-values volatility-values">
-              <span
-                v-for="window in WINDOWS.filter(w => w !== 1)"
-                :key="window"
-                class="volatility-item"
-                :class="{
-                  'volatility-highlight':
-                    p.visitorsVolatilityBaseline?.find(v => v.window === window)
-                      ?.level === '明显' ||
-                    p.visitorsVolatilityBaseline?.find(v => v.window === window)
-                      ?.level === '剧烈',
-                  'volatility-subtle':
-                    p.visitorsVolatilityBaseline?.find(v => v.window === window)
-                      ?.level === '极小' ||
-                    p.visitorsVolatilityBaseline?.find(v => v.window === window)
-                      ?.level === '轻微' ||
-                    p.visitorsVolatilityBaseline?.find(v => v.window === window)
-                      ?.level === '一般'
-                }"
-                :style="{
-                  borderColor: WINDOW_COLORS[window],
-                  backgroundColor: WINDOW_COLORS[window] + '40'
-                }"
-              >
-                <template
-                  v-if="
-                    p.visitorsVolatilityBaseline &&
-                    p.visitorsVolatilityBaseline.find(v => v.window === window)
-                  "
-                >
-                  <template
-                    v-for="vol in p.visitorsVolatilityBaseline.filter(
-                      v => v.window === window
-                    )"
-                    :key="vol.window"
-                  >
-                    <span class="volatility-window" style="color: #000000">
-                      {{ window }}天
-                    </span>
-                    <span
-                      class="volatility-direction"
-                      :style="{
-                        color: '#000000'
-                      }"
-                    >
-                      {{ vol.direction === "+" ? "↑" : "↓" }}
-                    </span>
-                    <span class="volatility-strength" style="color: #000000">
-                      {{ formatVolatilityStrength(vol.strength) }}%
-                    </span>
-                    <span
-                      class="volatility-level"
-                      :style="{
-                        color: '#000000',
-                        backgroundColor: levelColors[vol.level] || '#6b7280'
-                      }"
-                    >
-                      [{{ vol.level }}]
-                    </span>
-                  </template>
-                </template>
+          <!-- 折线图 -->
+          <div class="chart-section">
+            <MonitorLineChart
+              :data="chartDataMap[p.id] || null"
+              :visible-series="getProductVisibleSeries(p.id)"
+              :loading="chartLoadingMap[p.id] || false"
+              :error="chartErrorMap[p.id] || undefined"
+            />
+          </div>
+
+          <!-- 分析输入框 -->
+          <div class="analysis-section">
+            <div class="section-header">
+              <label class="section-label">分析</label>
+              <span class="char-count">
+                {{ (getProductAnalysis(p.id) || '').length }}/10000
               </span>
             </div>
-          </div>
-
-          <div class="metric-block">
-            <div class="metric-title">日均广告花费(30/15/7/3/1日)</div>
-            <div class="metric-values">
-              <span
-                v-for="(v, i) in p.adCostAvg"
-                :key="i"
-                :class="['metric-value', 'c' + i]"
-                >{{ formatNumber(v) }}</span
-              >
+            <el-input
+              v-model="analysisMap[p.id]"
+              type="textarea"
+              :rows="4"
+              placeholder="请输入分析内容..."
+              :maxlength="10000"
+              show-word-limit
+              @input="(val: string) => handleAnalysisChange(p.id, val)"
+            />
+            <div v-if="savingMap[p.id]" class="saving-indicator">
+              <el-icon class="is-loading"><Loading /></el-icon>
+              <span>保存中...</span>
             </div>
           </div>
 
-          <div class="metric-block">
-            <div class="metric-title">广告花费短期波动相对长期基准(60)指标</div>
-            <div class="metric-values volatility-values">
-              <span
-                v-for="window in WINDOWS.filter(w => w !== 1)"
-                :key="window"
-                class="volatility-item"
-                :class="{
-                  'volatility-highlight':
-                    p.adCostVolatilityBaseline?.find(v => v.window === window)
-                      ?.level === '明显' ||
-                    p.adCostVolatilityBaseline?.find(v => v.window === window)
-                      ?.level === '剧烈',
-                  'volatility-subtle':
-                    p.adCostVolatilityBaseline?.find(v => v.window === window)
-                      ?.level === '极小' ||
-                    p.adCostVolatilityBaseline?.find(v => v.window === window)
-                      ?.level === '轻微' ||
-                    p.adCostVolatilityBaseline?.find(v => v.window === window)
-                      ?.level === '一般'
-                }"
-                :style="{
-                  borderColor: WINDOW_COLORS[window],
-                  backgroundColor: WINDOW_COLORS[window] + '40'
-                }"
-              >
-                <template
-                  v-if="
-                    p.adCostVolatilityBaseline &&
-                    p.adCostVolatilityBaseline.find(v => v.window === window)
-                  "
-                >
-                  <template
-                    v-for="vol in p.adCostVolatilityBaseline.filter(
-                      v => v.window === window
-                    )"
-                    :key="vol.window"
-                  >
-                    <span class="volatility-window" style="color: #000000">
-                      {{ window }}天
-                    </span>
-                    <span
-                      class="volatility-direction"
-                      :style="{
-                        color: '#000000'
-                      }"
-                    >
-                      {{ vol.direction === "+" ? "↑" : "↓" }}
-                    </span>
-                    <span class="volatility-strength" style="color: #000000">
-                      {{ formatVolatilityStrength(vol.strength) }}%
-                    </span>
-                    <span
-                      class="volatility-level"
-                      :style="{
-                        color: '#000000',
-                        backgroundColor: levelColors[vol.level] || '#6b7280'
-                      }"
-                    >
-                      [{{ vol.level }}]
-                    </span>
-                  </template>
-                </template>
+          <!-- 改善方案输入框 -->
+          <div class="improvement-section">
+            <div class="section-header">
+              <label class="section-label">改善方案</label>
+              <span class="char-count">
+                {{ (getProductImprovementPlan(p.id) || '').length }}/10000
               </span>
             </div>
-          </div>
-
-          <div class="metric-block">
-            <div class="metric-title">日均销售额(30/15/7/3/1日)</div>
-            <div class="metric-values">
-              <span
-                v-for="(v, i) in p.salesAvg"
-                :key="i"
-                :class="['metric-value', 'c' + i]"
-                >{{ formatNumberWithLocale(v) }}</span
-              >
-            </div>
-          </div>
-
-          <div class="metric-block">
-            <div class="metric-title">销售额短期波动相对长期基准(60)指标</div>
-            <div class="metric-values volatility-values">
-              <span
-                v-for="window in WINDOWS.filter(w => w !== 1)"
-                :key="window"
-                class="volatility-item"
-                :class="{
-                  'volatility-highlight':
-                    p.salesVolatilityBaseline?.find(v => v.window === window)
-                      ?.level === '明显' ||
-                    p.salesVolatilityBaseline?.find(v => v.window === window)
-                      ?.level === '剧烈',
-                  'volatility-subtle':
-                    p.salesVolatilityBaseline?.find(v => v.window === window)
-                      ?.level === '极小' ||
-                    p.salesVolatilityBaseline?.find(v => v.window === window)
-                      ?.level === '轻微' ||
-                    p.salesVolatilityBaseline?.find(v => v.window === window)
-                      ?.level === '一般'
-                }"
-                :style="{
-                  borderColor: WINDOW_COLORS[window],
-                  backgroundColor: WINDOW_COLORS[window] + '40'
-                }"
-              >
-                <template
-                  v-if="
-                    p.salesVolatilityBaseline &&
-                    p.salesVolatilityBaseline.find(v => v.window === window)
-                  "
-                >
-                  <template
-                    v-for="vol in p.salesVolatilityBaseline.filter(
-                      v => v.window === window
-                    )"
-                    :key="vol.window"
-                  >
-                    <span class="volatility-window" style="color: #000000">
-                      {{ window }}天
-                    </span>
-                    <span
-                      class="volatility-direction"
-                      :style="{
-                        color: '#000000'
-                      }"
-                    >
-                      {{ vol.direction === "+" ? "↑" : "↓" }}
-                    </span>
-                    <span class="volatility-strength" style="color: #000000">
-                      {{ formatVolatilityStrength(vol.strength) }}%
-                    </span>
-                    <span
-                      class="volatility-level"
-                      :style="{
-                        color: '#FFFFFF',
-                        backgroundColor: levelColors[vol.level] || '#6b7280'
-                      }"
-                    >
-                      [{{ vol.level }}]
-                    </span>
-                  </template>
-                </template>
-              </span>
+            <el-input
+              v-model="improvementPlanMap[p.id]"
+              type="textarea"
+              :rows="4"
+              placeholder="请输入改善方案..."
+              :maxlength="10000"
+              show-word-limit
+              @input="(val: string) => handleImprovementPlanChange(p.id, val)"
+            />
+            <div v-if="savingMap[p.id]" class="saving-indicator">
+              <el-icon class="is-loading"><Loading /></el-icon>
+              <span>保存中...</span>
             </div>
           </div>
         </div>
@@ -1093,6 +1175,97 @@ onMounted(() => {
   font-size: 18px;
   margin-top: 2px;
   flex-shrink: 0;
+}
+
+.expanded-content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-top: 20px;
+}
+
+.chart-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  align-items: center;
+  padding: 16px;
+  border-radius: 12px;
+  background: linear-gradient(
+    140deg,
+    rgba(255, 255, 255, 0.9) 0%,
+    rgba(45, 226, 230, 0.16) 45%,
+    rgba(108, 99, 255, 0.12) 100%
+  );
+  backdrop-filter: blur(10px);
+  box-shadow: 0 12px 22px rgba(31, 18, 53, 0.12);
+}
+
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.control-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dopamine-soft-ink);
+  white-space: nowrap;
+}
+
+.checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.chart-section {
+  width: 100%;
+  min-height: 400px;
+  padding: 16px;
+  border-radius: 12px;
+  background: linear-gradient(
+    140deg,
+    rgba(255, 255, 255, 0.9) 0%,
+    rgba(45, 226, 230, 0.16) 45%,
+    rgba(108, 99, 255, 0.12) 100%
+  );
+  backdrop-filter: blur(10px);
+  box-shadow: 0 12px 22px rgba(31, 18, 53, 0.12);
+}
+
+.analysis-section,
+.improvement-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.section-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dopamine-soft-ink);
+}
+
+.char-count {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.saving-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-top: 4px;
 }
 
 .metrics {

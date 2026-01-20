@@ -14,18 +14,20 @@ export interface ProductCard {
   id: string;
   name: string;
   image?: string | null;
-  visitorsAvg: number[];
-  visitorsVolatilityBaseline: any[];
-  adCostAvg: number[];
-  adCostVolatilityBaseline: any[];
-  salesAvg: number[];
-  salesVolatilityBaseline: any[];
+  visitorsAvg?: number[]; // 已废弃，保留用于向后兼容
+  visitorsVolatilityBaseline?: any[]; // 已废弃，保留用于向后兼容
+  adCostAvg?: number[]; // 已废弃，保留用于向后兼容
+  adCostVolatilityBaseline?: any[]; // 已废弃，保留用于向后兼容
+  salesAvg?: number[]; // 已废弃，保留用于向后兼容
+  salesVolatilityBaseline?: any[]; // 已废弃，保留用于向后兼容
   warningLevel: "严重" | "一般" | "轻微" | "正常";
   warningMessages?: string[];
   custom_category_1?: string | null;
   custom_category_2?: string | null;
   custom_category_3?: string | null;
   custom_category_4?: string | null;
+  analysis?: string | null; // 分析内容
+  improvementPlan?: string | null; // 改善方案
 }
 
 // AI建议响应类型
@@ -37,7 +39,6 @@ export interface AISuggestionResponse {
 export const getFinishedLinkMonitorList = (params: {
   shopID: string;
   shopName: string;
-  date: string;
   customCategory?: string;
 }): Promise<ApiResponse<ProductCard[]>> => {
   return http.request<ApiResponse<ProductCard[]>>(
@@ -70,7 +71,6 @@ export const getFinishedLinkMonitorAISuggestion = (params: {
 export const getPotentialLinkMonitorList = (params: {
   shopID: string;
   shopName: string;
-  date: string;
   customCategory?: string;
 }): Promise<ApiResponse<ProductCard[]>> => {
   return http.request<ApiResponse<ProductCard[]>>(
@@ -109,7 +109,6 @@ export interface BatchAISuggestionResponse {
 export const batchGetFinishedLinkMonitorAISuggestion = (params: {
   shopID: string;
   shopName: string;
-  date: string;
 }): Promise<ApiResponse<BatchAISuggestionResponse>> => {
   return http.request<ApiResponse<BatchAISuggestionResponse>>(
     "post",
@@ -124,7 +123,6 @@ export const batchGetFinishedLinkMonitorAISuggestion = (params: {
 export const batchGetPotentialLinkMonitorAISuggestion = (params: {
   shopID: string;
   shopName: string;
-  date: string;
 }): Promise<ApiResponse<BatchAISuggestionResponse>> => {
   return http.request<ApiResponse<BatchAISuggestionResponse>>(
     "post",
@@ -139,7 +137,6 @@ export const batchGetPotentialLinkMonitorAISuggestion = (params: {
 export const getNaturalStageMonitorList = (params: {
   shopID: string;
   shopName: string;
-  date: string;
   customCategory?: string;
 }): Promise<ApiResponse<ProductCard[]>> => {
   return http.request<ApiResponse<ProductCard[]>>(
@@ -172,11 +169,120 @@ export const getNaturalStageMonitorAISuggestion = (params: {
 export const batchGetNaturalStageMonitorAISuggestion = (params: {
   shopID: string;
   shopName: string;
-  date: string;
 }): Promise<ApiResponse<BatchAISuggestionResponse>> => {
   return http.request<ApiResponse<BatchAISuggestionResponse>>(
     "post",
     "/api/natural/stage/monitor/batch-ai-suggestion",
+    {
+      data: params
+    }
+  );
+};
+
+// 图表数据接口响应类型
+export interface ChartDataResponse {
+  dates: string[];
+  visitors: (number | null)[];
+  cartRate: (number | null)[];
+  conversionRate: (number | null)[];
+  orderCount: (number | null)[];
+  buyerCount: (number | null)[];
+  gmv: (number | null)[];
+}
+
+// 获取成品链接监控图表数据
+export const getFinishedLinkMonitorChart = (params: {
+  shopID: string;
+  shopName: string;
+  productID: string;
+  startDate: string;
+  endDate: string;
+}): Promise<ApiResponse<ChartDataResponse>> => {
+  return http.request<ApiResponse<ChartDataResponse>>(
+    "get",
+    "/api/finished/link/monitor/chart",
+    {
+      params
+    }
+  );
+};
+
+// 获取潜力链接监控图表数据
+export const getPotentialLinkMonitorChart = (params: {
+  shopID: string;
+  shopName: string;
+  productID: string;
+  startDate: string;
+  endDate: string;
+}): Promise<ApiResponse<ChartDataResponse>> => {
+  return http.request<ApiResponse<ChartDataResponse>>(
+    "get",
+    "/api/potential/link/monitor/chart",
+    {
+      params
+    }
+  );
+};
+
+// 获取自然流商品监控图表数据
+export const getNaturalStageMonitorChart = (params: {
+  shopID: string;
+  shopName: string;
+  productID: string;
+  startDate: string;
+  endDate: string;
+}): Promise<ApiResponse<ChartDataResponse>> => {
+  return http.request<ApiResponse<ChartDataResponse>>(
+    "get",
+    "/api/natural/stage/monitor/chart",
+    {
+      params
+    }
+  );
+};
+
+// 保存分析接口请求参数
+export interface SaveAnalysisParams {
+  shopID: string;
+  shopName: string;
+  productID: string;
+  analysis?: string;
+  improvementPlan?: string;
+}
+
+// 保存成品链接监控分析
+export const saveFinishedLinkMonitorAnalysis = (
+  params: SaveAnalysisParams
+): Promise<ApiResponse<void>> => {
+  return http.request<ApiResponse<void>>(
+    "post",
+    "/api/finished/link/monitor/save-analysis",
+    {
+      data: params
+    }
+  );
+};
+
+// 保存潜力链接监控分析
+export const savePotentialLinkMonitorAnalysis = (
+  params: SaveAnalysisParams
+): Promise<ApiResponse<void>> => {
+  return http.request<ApiResponse<void>>(
+    "post",
+    "/api/potential/link/monitor/save-analysis",
+    {
+      data: params
+    }
+  );
+};
+
+// 保存自然流商品监控分析
+export const saveNaturalStageMonitorAnalysis = (
+  params: SaveAnalysisParams
+): Promise<ApiResponse<void>> => {
+  return http.request<ApiResponse<void>>(
+    "post",
+    "/api/natural/stage/monitor/save-analysis",
     {
       data: params
     }
